@@ -1,0 +1,68 @@
+# DISABLE CACHING
+<IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+</IfModule>
+
+# BLOCK SENSITIVE FILES
+<FilesMatch "(db_.*\.sql|\.sql|\.bak|\.env|\.gitignore|composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|\.md$|README|AGENTS\.md|excel_reader\.php|\.htaccess)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(css|flv|gif|htm|html|ico|jpe|jpeg|jpg|js|mp3|mp4|png|pdf|swf|txt)$">
+    <IfModule mod_expires.c>
+        ExpiresActive Off
+    </IfModule>
+    <IfModule mod_headers.c>
+        FileETag None
+        Header unset ETag
+        Header unset Pragma
+        Header unset Cache-Control
+        Header unset Last-Modified
+        Header set Pragma "no-cache"
+        Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+        Header set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    </IfModule>
+</FilesMatch>
+
+# BLOCK DIRECTORIES (folders that should not be served directly)
+<IfModule mod_rewrite.c>
+    RewriteRule ^(\.git|\.vexp|\.vscode|phpqrcode|not_used|file_import_scan_master|app|actions|FILE)/?$ - [F,L]
+</IfModule>
+
+# Redirect old ?v= URLs to SEO URLs
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /newqr/
+
+    RewriteCond %{QUERY_STRING} (^|&)v=dt(&|$) [NC]
+    RewriteRule ^$ data-qr? [R=301,L]
+
+    RewriteCond %{QUERY_STRING} (^|&)v=im(&|$) [NC]
+    RewriteRule ^$ import? [R=301,L]
+
+    RewriteCond %{QUERY_STRING} (^|&)v=qr(&|$) [NC]
+    RewriteRule ^$ buat-qr? [R=301,L]
+
+    RewriteCond %{QUERY_STRING} ^v=print&version=([^&]+)&data=([^&]+)$ [NC]
+    RewriteRule ^$ print/%1/%2? [R=301,L]
+
+    RewriteCond %{QUERY_STRING} ^v=print2&version=([^&]+)&data=([^&]+)$ [NC]
+    RewriteRule ^$ print-xerox/%1/%2? [R=301,L]
+
+    RewriteCond %{QUERY_STRING} (^|&)msg=deleted(&|$) [NC]
+    RewriteRule ^$ data-qr? [R=301,L]
+
+    RewriteCond %{QUERY_STRING} (^|&)msg=error(&|$) [NC]
+    RewriteRule ^$ data-qr? [R=301,L]
+
+    RewriteRule ^data-qr$ index.php [L,QSA]
+    RewriteRule ^import$ index.php [L,QSA]
+    RewriteRule ^login$ index.php [L,QSA]
+    RewriteRule ^print/([^/]+)/([^/]+)_left$ index.php [L,QSA]
+    RewriteRule ^print/([^/]+)/([^/]+)$ index.php [L,QSA]
+    RewriteRule ^print-xerox/([^/]+)/([^/]+)$ index.php [L,QSA]
+    RewriteRule ^trigger-label/([^/]+)/([^/]+)$ index.php [L,QSA]
+    RewriteRule ^buat-qr$ index.php [L,QSA]
+</IfModule>
