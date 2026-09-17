@@ -1,6 +1,6 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+  session_start();
 }
 ?>
 <div class="page-header">
@@ -44,8 +44,10 @@ if (session_status() === PHP_SESSION_NONE) {
                 PRINT <span class="caret"></span>
               </button>
               <ul class="dropdown-menu" aria-labelledby="printMenu<?= $i ?>">
-                <li><a href="/newqr/print/<?= htmlspecialchars($r['UPLOAD_VERSION'], ENT_QUOTES, 'UTF-8') ?>/<?= htmlspecialchars($r['DATA'], ENT_QUOTES, 'UTF-8') ?>" rel="noopener" target="_blank">PRINT</a></li>
-                <?php if ($r['DATA'] != "paxar" && $r['DATA'] != "additional_label") { ?>
+                <?php if ($r['DATA'] != "additional_label") { ?>
+                  <li><a href="/newqr/print/<?= htmlspecialchars($r['UPLOAD_VERSION'], ENT_QUOTES, 'UTF-8') ?>/<?= htmlspecialchars($r['DATA'], ENT_QUOTES, 'UTF-8') ?>" rel="noopener" target="_blank">PRINT</a></li>
+                <?php } ?>
+                <?php if ($r['DATA'] != "paxar" && $r['DATA'] != "additional_label" && $r['DATA'] != "tl") { ?>
                   <li><a href="/newqr/print-xerox/<?= htmlspecialchars($r['UPLOAD_VERSION'], ENT_QUOTES, 'UTF-8') ?>/<?= htmlspecialchars($r['DATA'], ENT_QUOTES, 'UTF-8') ?>" rel="noopener" target="_blank">XEROX</a></li>
                 <?php } ?>
                 <?php if ($r['DATA'] == "additional_label") { ?>
