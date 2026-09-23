@@ -28,7 +28,9 @@ class PrintPresenter {
                 $rows[] = $r;
             }
         }
-        
+
+        $rows = dedupeRows($rows);
+
         $view = $variant == 'xerox' ? 'print_xerox.php' : 'print.php';
         include BASE_PATH . '/views/layout_print.php';
     }

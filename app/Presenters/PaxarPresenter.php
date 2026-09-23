@@ -16,7 +16,9 @@ class PaxarPresenter {
                 $rows[] = $r;
             }
         }
-        
+
+        $rows = dedupeRows($rows);
+
         $view = 'paxar.php';
         include BASE_PATH . '/views/layout_print.php';
     }

@@ -16,8 +16,14 @@
   if ($cek_data && $cek_data["DATA"] === "additional_label") {
     $tampil = mysqli_query($db, "SELECT * FROM data_label_add WHERE UPLOAD_VERSION='$version' ORDER BY NO_URUT ASC");
 
-    $i = 0;
+    $allRows = [];
     while ($r = mysqli_fetch_array($tampil)) {
+      $allRows[] = $r;
+    }
+    $rows = dedupeRows($allRows);
+
+    $i = 0;
+    foreach ($rows as $r) {
       $id = $r['ID'];
       $qrPath = BASE_PATH . "/QR/{$id}.png";
       $qrUrl = BASE_URL . "/QR/{$id}.png";

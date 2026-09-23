@@ -16,7 +16,9 @@ class TlPresenter {
                 $rows[] = $r;
             }
         }
-        
+
+        $rows = dedupeRows($rows);
+
         $view = 'trigger-label.php';
         include BASE_PATH . '/views/layout_print.php';
     }
