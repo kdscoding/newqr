@@ -65,6 +65,80 @@
   }
   ?>
 </div>
+
+<?php if (!empty($summaryByNameItem) || !empty($summaryByItem)): ?>
+<div class="summary-row">
+  <?php if (!empty($summaryByNameItem)): ?>
+  <div class="summary-section">
+    <div class="summary-title">📋 SUMMARY TOTAL QTY BERDASARKAN NAMA DAN ITEM</div>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th style="width:30%">NAMA (TAKEN BY)</th>
+          <th style="width:35%">ITEM</th>
+          <th style="width:15%">TOTAL PO</th>
+          <th style="width:20%">TOTAL QTY</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($summaryByNameItem as $entry): ?>
+        <?php
+          $poList = [];
+          $totalQtyItemName = 0;
+          foreach ($summaryByNameItemPo as $poEntry) {
+            if ($poEntry['nama'] === $entry['nama'] && $poEntry['item'] === $entry['item']) {
+              $poList[] = htmlspecialchars($poEntry['po']);
+              $totalQtyItemName += $poEntry['qty'];
+            }
+          }
+          $totalPo = count($poList);
+        ?>
+        <tr>
+          <td><?= htmlspecialchars($entry['nama']) ?></td>
+          <td><?= htmlspecialchars($entry['item']) ?></td>
+          <td style="text-align:center"><?= $totalPo ?></td>
+          <td style="text-align:right"><?= number_format($entry['qty'], 0, ',', '.') ?></td>
+        </tr>
+        <?php endforeach ?>
+        <tr class="summary-total-row">
+          <td colspan="3"><strong>GRAND TOTAL</strong></td>
+          <td style="text-align:right"><strong><?= number_format(array_sum($summaryByItem), 0, ',', '.') ?></strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <?php endif ?>
+
+  <?php if (!empty($summaryByItem)): ?>
+  <div class="summary-section">
+    <div class="summary-title">📋 SUMMARY TOTAL QTY BERDASARKAN ITEM</div>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th style="width:40%">ITEM</th>
+          <th style="width:20%">TOTAL PO</th>
+          <th style="width:40%">TOTAL QTY</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($summaryByItem as $item => $qty): ?>
+        <tr>
+          <td><?= htmlspecialchars($item) ?></td>
+          <td style="text-align:center"><?= isset($summaryByItemPo[$item]) ? $summaryByItemPo[$item] : 0 ?></td>
+          <td style="text-align:right"><?= number_format($qty, 0, ',', '.') ?></td>
+        </tr>
+        <?php endforeach ?>
+        <tr class="summary-total-row">
+          <td><strong>GRAND TOTAL</strong></td>
+          <td style="text-align:center"><strong><?= number_format(array_sum($summaryByItemPo), 0, ',', '.') ?></strong></td>
+          <td style="text-align:right"><strong><?= number_format(array_sum($summaryByItem), 0, ',', '.') ?></strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <?php endif ?>
+</div>
+<?php endif ?>
 <style type="text/css">
   body {
     font-family: Arial, sans-serif;
@@ -258,5 +332,56 @@
   .label-text .packing {
     font-size: 8px;
     font-weight: 600;
+  }
+
+  .summary-section {
+    margin: 0 10px;
+    page-break-inside: avoid;
+  }
+
+  .summary-title {
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    text-align: center;
+    border-bottom: 1px solid #000;
+    padding-bottom: 3px;
+  }
+
+  .summary-table {
+    width: auto;
+    max-width: 800px;
+    border-collapse: collapse;
+    font-size: 7px;
+    margin: 0 auto;
+    table-layout: auto;
+  }
+
+  .summary-table th {
+    border: 1px solid #000;
+    background: #eee;
+    padding: 3px;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  .summary-table td {
+    border: 1px solid #000;
+    padding: 3px;
+    vertical-align: top;
+  }
+
+  .summary-total-row td {
+    background: #ddd;
+  }
+
+  .summary-row {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-start;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    page-break-inside: avoid;
   }
 </style>
