@@ -41,6 +41,8 @@ $csrfToken = $_SESSION['csrf_token'];
     <li><strong>Format Cells harus sesuai template</strong> (case-sensitive)</li>
     <li><strong>Kolom header harus EXACT sesuai template</strong> (case-sensitive)</li>
     <li>Jumlah kolom harus sesuai template masing-masing tipe data</li>
+    <li>Kolom tanggal (START, SDD, PRINT_DATE) <strong>boleh dikosongkan</strong>; jika diisi gunakan format <strong>DD/MM/YYYY</strong> atau <strong>DD-MM-YYYY</strong></li>
+    <li>Kolom tanggal kosong akan disimpan kosong dan tidak dicetak pada label</li>
     <li>File yang tidak sesuai format akan <strong>DITOLAK</strong> dan tidak akan diproses</li>
   </ul>
 </div>

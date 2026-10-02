@@ -44,7 +44,9 @@
 								?>
 								<div class="row itas-x" style="margin-left:<?=$margin?>;    margin-right: 0px;">
 									<div class="col-xs-7" style="padding:0">
-										<p class="itas"><?=formatDateDisplay($r['PRINT_DATE'])?></p><br>
+										<?php if (formatDateDisplay($r['PRINT_DATE']) !== '') { ?>
+										<p class="itas"><?= formatDateDisplay($r['PRINT_DATE']) ?></p><br>
+									<?php } ?>
 										<p class="itas"><?= htmlspecialchars($r['PO'], ENT_QUOTES, 'UTF-8') ?></p><br>
 									</div>
 									<div class="col-xs-5" style="padding:0">
@@ -56,7 +58,8 @@
 										<p class="itas"><?= htmlspecialchars($r['MODEL_NAME'], ENT_QUOTES, 'UTF-8') ?></p><br>
 										<p class="itas"><?= htmlspecialchars($r['QTY'], ENT_QUOTES, 'UTF-8') ?></p><br>
 										<p class="itas"><?= htmlspecialchars($r['REMARKS'], ENT_QUOTES, 'UTF-8') ?></p><br>
-										<p class="itas <?=$bg?>"><?= htmlspecialchars($r['PRINTED_BY'], ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars($r['CELL'], ENT_QUOTES, 'UTF-8') ?></p>
+							<?php $printedBy = trim((string)($r['PRINTED_BY'] ?? '')); ?>
+						<p class="itas <?=$bg?>"><?= htmlspecialchars($printedBy !== '' ? $printedBy . ' - ' . $r['CELL'] : $r['CELL'], ENT_QUOTES, 'UTF-8') ?></p>
 									</div>
 								</div>
 							<?php } ?>

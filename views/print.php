@@ -175,7 +175,7 @@ if ($cek_data && $cek_data["DATA"] == "inhouse" && $zeroQty > 0) {
 									<h6 class="item"><?php if ($r['QTY'] != "") {
 																					echo number_format($r['QTY']);
 																				} ?></h6>
-									<h6 class="item"><?= htmlspecialchars($r['SDD'], ENT_QUOTES, 'UTF-8') ?></h6>
+									<h6 class="item"><?= formatDateDisplay($r['SDD']) ?></h6>
 									<h6 class="item"><?= htmlspecialchars($r['SAP'], ENT_QUOTES, 'UTF-8') ?></h6>
 								</div>
 								<div class="col-xs-3" style="padding-left:0;padding-top:0;padding-bottom:0;padding-right:10px;float: right;">
@@ -195,7 +195,7 @@ if ($cek_data && $cek_data["DATA"] == "inhouse" && $zeroQty > 0) {
 									<h6 class="item"><?php if ($r['QTY'] != "") {
 																					echo number_format($r['QTY']);
 																				} ?></h6>
-									<h6 class="item"><?= htmlspecialchars($r['SDD'], ENT_QUOTES, 'UTF-8') ?></h6>
+									<h6 class="item"><?= formatDateDisplay($r['SDD']) ?></h6>
 									<h6 class="item"><?= htmlspecialchars($r['SAP'], ENT_QUOTES, 'UTF-8') ?></h6>
 								</div>
 								<?php } ?>

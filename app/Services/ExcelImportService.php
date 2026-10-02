@@ -15,14 +15,42 @@ class ExcelImportService
         return (string)(int)$val;
     }
 
+    private static function isBlankDate($val)
+    {
+        if ($val === null) return true;
+        $val = trim((string)$val);
+        if ($val === '' || $val === '0' || $val === '0000-00-00' || $val === '00-00-0000') return true;
+        return false;
+    }
+
+    private static function parseDateField($raw, &$valid = null)
+    {
+        $valid = true;
+        if (self::isBlankDate($raw)) return '';
+        $parsed = self::parseExcelDate($raw);
+        if ($parsed === '') {
+            $valid = false;
+            return '';
+        }
+        return $parsed;
+    }
+
+    private static function dateForDb($val)
+    {
+        return ($val === '' || $val === null) ? null : $val;
+    }
+
     private static function parseExcelDate($val)
     {
         if (empty($val) || $val === '' || $val === null) return '';
         $val = trim($val);
+        $val = preg_replace('/[\sT]+(\d{1,2}:\d{2}(:\d{2})?(\s*[APap][Mm].*)?)$/', '', $val);
+        $val = trim($val);
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $val)) return $val;
         $formats = [
             'd/m/y', 'd/m/Y', 'd/M/y', 'd/M/Y',
-            'j/M/y', 'j/M/Y', 'd-M-y', 'd-M-Y',
+            'j/M/y', 'j/M/Y', 'd-m-y', 'd-m-Y',
+            'j-m-y', 'j-m-Y', 'd-M-y', 'd-M-Y',
             'j-M-y', 'j-M-Y',
         ];
         foreach ($formats as $fmt) {
@@ -246,8 +274,8 @@ class ExcelImportService
                 $COUNTRY = self::excelRead($data, $i, 5);
                 $BUILDING = self::excelRead($data, $i, 6);
                 $CELL    = substr(self::excelRead($data, $i, 7), 0, 9);
-                $START   = self::parseExcelDate(self::excelRead($data, $i, 8));
-                $SDD     = self::parseExcelDate(self::excelRead($data, $i, 9));
+                $START   = self::parseDateField(self::excelRead($data, $i, 8), $startValid);
+                $SDD     = self::parseDateField(self::excelRead($data, $i, 9), $sddValid);
                 $QTY     = self::excelReadInt($data, $i, 10);
                 $REMARK  = self::excelRead($data, $i, 11);
                 $SAP     = self::excelRead($data, $i, 12);
@@ -266,18 +294,20 @@ class ExcelImportService
                         'suggestion' => "Isi kolom QTY dengan angka lebih dari 0."
                     ];
                 }
-                if ($START == '' || $SDD == '') {
+                if (!$startValid || !$sddValid) {
                     $rowErrors[] = [
-                        'row' => $i, 'col' => ($START == '' ? 8 : 9), 'field' => 'START/SDD',
-                        'value' => 'START=' . $START . ', SDD=' . $SDD,
+                        'row' => $i, 'col' => (!$startValid ? 8 : 9), 'field' => (!$startValid ? 'START' : 'SDD'),
+                        'value' => (!$startValid ? self::excelRead($data, $i, 8) : self::excelRead($data, $i, 9)),
                         'type' => 'invalid_date', 'message' => "Baris $i: Format tanggal tidak valid",
-                        'suggestion' => "Gunakan format tanggal DD/MM/YYYY atau DD-MM-YYYY. Contoh: 25/12/2024"
+                        'suggestion' => "Kosongkan kolom tanggal, atau gunakan format DD/MM/YYYY atau DD-MM-YYYY. Contoh: 25/12/2024"
                     ];
                 }
 
                 if ($NO_URUT != '' && $NO_URUT != '0') {
                     if ($PO == '') $ID = "_";
-                    $stmt_inhouse->bind_param('issssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $PO, $ITEM, $COUNTRY, $BUILDING, $CELL, $START, $SDD, $QTY, $REMARK, $SAP);
+                    $START_DB = self::dateForDb($START);
+                    $SDD_DB = self::dateForDb($SDD);
+                    $stmt_inhouse->bind_param('issssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $PO, $ITEM, $COUNTRY, $BUILDING, $CELL, $START_DB, $SDD_DB, $QTY, $REMARK, $SAP);
                     $result = $stmt_inhouse->execute();
                     if (!$result) {
                         $queryErrors[] = [
@@ -353,7 +383,7 @@ class ExcelImportService
                 $COUNTRY    = self::excelRead($data, $i, 5);
                 $BUILDING   = self::excelRead($data, $i, 6);
                 $CELL       = substr(self::excelRead($data, $i, 7), 0, 9);
-                $SDD        = self::parseExcelDate(self::excelRead($data, $i, 8));
+                $SDD        = self::parseDateField(self::excelRead($data, $i, 8), $sddValid);
                 $QTY        = self::excelReadInt($data, $i, 9);
                 $PACKING_LIST = self::excelRead($data, $i, 10);
                 $SAP        = self::excelRead($data, $i, 11);
@@ -365,13 +395,14 @@ class ExcelImportService
                 if ($QTY == '' || $QTY == '0') {
                     $rowErrors[] = ['row' => $i, 'col' => 9, 'field' => 'QTY', 'value' => $QTY, 'type' => 'invalid_numeric', 'message' => "Baris $i: Kolom 'QTY' harus angka dan tidak boleh 0", 'suggestion' => "Isi dengan angka lebih dari 0."];
                 }
-                if ($SDD == '') {
-                    $rowErrors[] = ['row' => $i, 'col' => 8, 'field' => 'SDD', 'value' => $SDD, 'type' => 'invalid_date', 'message' => "Baris $i: Format tanggal SDD tidak valid", 'suggestion' => "Gunakan format DD/MM/YYYY atau DD-MM/YYYY."];
+                if (!$sddValid) {
+                    $rowErrors[] = ['row' => $i, 'col' => 8, 'field' => 'SDD', 'value' => self::excelRead($data, $i, 8), 'type' => 'invalid_date', 'message' => "Baris $i: Format tanggal SDD tidak valid", 'suggestion' => "Kosongkan kolom SDD, atau gunakan format DD/MM/YYYY atau DD-MM/YYYY."];
                 }
 
                 if ($NO_URUT != '' && $NO_URUT != '0') {
                     if ($PO == '') $ID = "_";
-                    $stmt_sbsite->bind_param('issssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $PO, $ITEM, $COUNTRY, $BUILDING, $CELL, $SDD, $QTY, $PACKING_LIST, $SAP, $ID_SAP);
+                    $SDD_DB = self::dateForDb($SDD);
+                    $stmt_sbsite->bind_param('issssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $PO, $ITEM, $COUNTRY, $BUILDING, $CELL, $SDD_DB, $QTY, $PACKING_LIST, $SAP, $ID_SAP);
                     $result = $stmt_sbsite->execute();
                     if (!$result) {
                         $queryErrors[] = [
@@ -401,8 +432,9 @@ class ExcelImportService
 
                 $ITEM       = self::excelRead($data, $i, 3);
                 $PO         = self::excelRead($data, $i, 4);
-                $PRINT_DATE = self::parseExcelDate(self::excelRead($data, $i, 5));
+                $PRINT_DATE = self::parseDateField(self::excelRead($data, $i, 5), $printDateValid);
                 $PRINTED_BY = self::excelRead($data, $i, 6);
+                if (self::isBlankDate($PRINTED_BY)) $PRINTED_BY = '';
                 $REMARKS    = substr(self::excelRead($data, $i, 7), 0, 19);
                 $CUST       = self::excelRead($data, $i, 8);
                 $COUNTRY    = substr(self::excelRead($data, $i, 9), 0, 10);
@@ -417,8 +449,8 @@ class ExcelImportService
                 if ($QTY == '' || $QTY == '0') {
                     $rowErrors[] = ['row' => $i, 'col' => 12, 'field' => 'QTY', 'value' => $QTY, 'type' => 'invalid_numeric', 'message' => "Baris $i: Kolom 'QTY' harus angka dan tidak boleh 0", 'suggestion' => "Isi dengan angka lebih dari 0."];
                 }
-                if ($PRINT_DATE == '') {
-                    $rowErrors[] = ['row' => $i, 'col' => 5, 'field' => 'PRINT_DATE', 'value' => self::excelRead($data, $i, 5), 'type' => 'invalid_date', 'message' => "Baris $i: Format tanggal PRINT_DATE tidak valid", 'suggestion' => "Gunakan format DD/MM/YYYY atau DD-MM/YYYY."];
+                if (!$printDateValid) {
+                    $rowErrors[] = ['row' => $i, 'col' => 5, 'field' => 'PRINT_DATE', 'value' => self::excelRead($data, $i, 5), 'type' => 'invalid_date', 'message' => "Baris $i: Format tanggal PRINT_DATE tidak valid", 'suggestion' => "Kosongkan kolom PRINT_DATE, atau gunakan format DD/MM/YYYY atau DD-MM/YYYY."];
                 }
                 if (strlen($COUNTRY) > 10) {
                     $rowErrors[] = ['row' => $i, 'col' => 9, 'field' => 'COUNTRY', 'value' => $COUNTRY, 'type' => 'max_length_exceeded', 'message' => "Baris $i: Kolom 'COUNTRY' maksimal 10 karakter", 'suggestion' => "Persingkat teks COUNTRY menjadi maksimal 10 karakter."];
@@ -426,7 +458,8 @@ class ExcelImportService
 
                 if ($NO_URUT != '' && $NO_URUT != '0') {
                     if ($PO == '') $ID = "_";
-                    $stmt_paxar->bind_param('isssssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $ITEM, $PO, $PRINT_DATE, $PRINTED_BY, $REMARKS, $CUST, $COUNTRY, $ART, $MODEL_NAME, $QTY, $CELL);
+                    $PRINT_DATE_DB = self::dateForDb($PRINT_DATE);
+                    $stmt_paxar->bind_param('isssssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $ITEM, $PO, $PRINT_DATE_DB, $PRINTED_BY, $REMARKS, $CUST, $COUNTRY, $ART, $MODEL_NAME, $QTY, $CELL);
                     $result = $stmt_paxar->execute();
                     if (!$result) {
                         $queryErrors[] = [
@@ -459,8 +492,8 @@ class ExcelImportService
                 $COUNTRY = self::excelRead($data, $i, 5);
                 $BUILDING = self::excelRead($data, $i, 6);
                 $CELL    = substr(self::excelRead($data, $i, 7), 0, 9);
-                $START   = self::parseExcelDate(self::excelRead($data, $i, 8));
-                $SDD     = self::parseExcelDate(self::excelRead($data, $i, 9));
+                $START   = self::parseDateField(self::excelRead($data, $i, 8), $startValid);
+                $SDD     = self::parseDateField(self::excelRead($data, $i, 9), $sddValid);
                 $QTY     = self::excelReadInt($data, $i, 10);
                 $REMARK  = self::excelRead($data, $i, 11);
                 $SAP     = self::excelRead($data, $i, 12);
@@ -471,12 +504,14 @@ class ExcelImportService
                 if ($QTY == '' || $QTY == '0') {
                     $rowErrors[] = ['row' => $i, 'col' => 10, 'field' => 'QTY', 'value' => $QTY, 'type' => 'invalid_numeric', 'message' => "Baris $i: Kolom 'QTY' harus angka dan tidak boleh 0", 'suggestion' => "Isi dengan angka lebih dari 0."];
                 }
-                if ($START == '' || $SDD == '') {
-                    $rowErrors[] = ['row' => $i, 'col' => ($START == '' ? 8 : 9), 'field' => 'START/SDD', 'value' => 'START=' . $START . ', SDD=' . $SDD, 'type' => 'invalid_date', 'message' => "Baris $i: Format tanggal tidak valid", 'suggestion' => "Gunakan format DD/MM/YYYY atau DD-MM-YYYY."];
+                if (!$startValid || !$sddValid) {
+                    $rowErrors[] = ['row' => $i, 'col' => (!$startValid ? 8 : 9), 'field' => (!$startValid ? 'START' : 'SDD'), 'value' => (!$startValid ? self::excelRead($data, $i, 8) : self::excelRead($data, $i, 9)), 'type' => 'invalid_date', 'message' => "Baris $i: Format tanggal tidak valid", 'suggestion' => "Kosongkan kolom tanggal, atau gunakan format DD/MM/YYYY atau DD-MM/YYYY."];
                 }
 
                 if ($NO_URUT != '' && $NO_URUT != '0') {
-                    $stmt_tl->bind_param('issssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $PO, $ITEM, $COUNTRY, $BUILDING, $CELL, $START, $SDD, $QTY, $REMARK, $SAP);
+                    $START_DB = self::dateForDb($START);
+                    $SDD_DB = self::dateForDb($SDD);
+                    $stmt_tl->bind_param('issssssssssss', $NO_URUT, $UPLOAD_VERSION, $ID, $PO, $ITEM, $COUNTRY, $BUILDING, $CELL, $START_DB, $SDD_DB, $QTY, $REMARK, $SAP);
                     $result = $stmt_tl->execute();
                     if (!$result) {
                         $queryErrors[] = [

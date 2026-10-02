@@ -16,7 +16,9 @@ class Config
 
     public static function formatDateDisplay($val)
     {
-        if (empty($val) || $val === '' || $val === null) return '';
+        if ($val === null) return '';
+        $val = trim((string)$val);
+        if ($val === '' || $val === '0' || $val === '0000-00-00' || $val === '00-00-0000') return '';
         $dt = DateTime::createFromFormat('Y-m-d', $val);
         if ($dt) return $dt->format('d-M-y');
         return $val;
