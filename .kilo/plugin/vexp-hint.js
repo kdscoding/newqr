@@ -1,5 +1,6 @@
 // vexp-hint: per-prompt orientation + idle verification (fail-open). Managed by vexp.
-const VEXP_BIN = "c:/Users/LBL-PC-0028/.vscode/extensions/vexp.vexp-vscode-3.2.4-win32-x64/binaries/vexp-core-win32-x64/vexp-core.exe";
+const VEXP_BIN = "C:/Users/LBL-PC-0028/.vscode/extensions/vexp.vexp-vscode-3.3.1-win32-x64/binaries/vexp-core-win32-x64/vexp-core.exe";
+const VEXP_AGENT = "kilo";
 export const VexpHint = async ({ directory, client }) => {
   const fs = await import("node:fs");
   const path = await import("node:path");
@@ -39,10 +40,13 @@ export const VexpHint = async ({ directory, client }) => {
             fs.writeFileSync(tf, text);
           }
         } catch (e) { /* fail open */ }
+        // hook_event_name: prompt-hint counts a call without one as a manual
+        // probe and keeps it out of the activity ledger, which is where every
+        // opencode and Kilo prompt went. VEXP_HOOK_AGENT labels the rows.
         const out = await runVexp(["prompt-hint"], {
-          input: JSON.stringify({ prompt: text, session_id: sid }),
+          input: JSON.stringify({ prompt: text, session_id: sid, hook_event_name: "UserPromptSubmit" }),
           timeout: 4000,
-          env: { ...process.env, CLAUDE_PROJECT_DIR: directory },
+          env: { ...process.env, CLAUDE_PROJECT_DIR: directory, VEXP_HOOK_AGENT: VEXP_AGENT },
         });
         if (!out || !out.trim()) return;
         const hint = JSON.parse(out).hookSpecificOutput?.additionalContext;
@@ -74,9 +78,13 @@ export const VexpHint = async ({ directory, client }) => {
         if (fs.existsSync(marker)) return;
         const tf = taskFileFor(sid);
         if (!fs.existsSync(tf)) return;
+        // VEXP_RULES_CHECK=0: a hook neither writes the index nor waits on
+        // it. Under a rule change verify would reconcile first, and a large
+        // one outlives the 15 s budget, killed and restarted at every idle.
         const out = await runVexp(["verify", "--json", "--task-file", tf], {
           timeout: 15000,
           cwd: directory,
+          env: { ...process.env, VEXP_RULES_CHECK: "0" },
         });
         if (!out || !out.trim()) return;
         const rep = JSON.parse(out);

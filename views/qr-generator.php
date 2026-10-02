@@ -153,7 +153,14 @@
                 <div><strong>IP Printer:</strong> <?= htmlspecialchars($item['ip_printer']) ?></div>
                 <div style="margin-top:8px;">
                   <a href="<?= htmlspecialchars($item['qr_image']) ?>" download class="btn btn-success btn-sm">⬇️ Download</a>
-                  <button type="button" class="btn btn-primary btn-sm" onclick='printQr("<?= htmlspecialchars($item['qr_image']) ?>", "<?= htmlspecialchars($item['nama']) ?>", "<?= htmlspecialchars($item['printer']) ?>", "<?= htmlspecialchars($item['pc']) ?>", "<?= htmlspecialchars($item['ip_pc']) ?>", "<?= htmlspecialchars($item['ip_printer']) ?>")'>🖨️ Print</button>
+                  <button type="button" class="btn btn-primary btn-sm" onclick='printQr(<?= json_encode([
+                      $item['qr_image'],
+                      $item['nama'],
+                      $item['printer'],
+                      $item['pc'],
+                      $item['ip_pc'],
+                      $item['ip_printer'],
+                  ], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>)'>🖨️ Print</button>
                 </div>
               </div>
             </div>
@@ -169,91 +176,74 @@
   </div>
 
   <script>
-    function printQr(imgSrc, title, printer, pc, ipPc, ipPrinter) {
+    var LABEL_CSS = [
+      '@page { size: auto; margin: 3mm; }',
+      'body { margin: 0; padding: 0; font-family: Arial, sans-serif; }',
+      '.label { width: 6.2cm; border: 1px solid #000; padding: 1mm; margin: 0 2mm 2mm 0; box-sizing: border-box; display: inline-flex; align-items: center; gap: 1mm; vertical-align: top; page-break-inside: avoid; break-inside: avoid; overflow: visible; }',
+      '.qr { width: 1.4cm; height: 1.4cm; flex: 0 0 auto; object-fit: contain; }',
+      '.info { flex: 1 1 auto; min-width: 0; font-size: 7pt; line-height: 1.3; color: #000; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 1mm; align-items: center; }',
+      '.info .k { font-weight: 700; white-space: nowrap; }',
+      '.info .v { min-width: 0; white-space: normal; overflow-wrap: break-word; word-break: break-word; }'
+    ].join('\n');
+
+    function escHtml(value) {
+      return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function labelHtml(imgSrc, printer, pc, ipPc, ipPrinter) {
+      var keys = ['Printer', 'PC', 'IP PC', 'IP Printer'];
+      var vals = [printer, pc, ipPc, ipPrinter];
+      var info = '';
+      for (var i = 0; i < keys.length; i++) {
+        info += '<span class="k">' + keys[i] + '</span><span class="v">' +
+          escHtml(vals[i]) + '</span>';
+      }
+      return '<div class="label">' +
+        '<img class="qr" src="' + escHtml(imgSrc) + '">' +
+        '<div class="info">' + info + '</div>' +
+        '</div>';
+    }
+
+    function openPrintWindow(title, bodyHtml) {
       var win = window.open('', '_blank', 'width=900,height=600');
-      win.document.write('<!DOCTYPE html><html><head><title>Print QR</title>');
-      win.document.write('<style>');
-      win.document.write('@page { size: auto; margin: 0mm; }');
-      win.document.write('body { margin: 0; padding: 0; font-family: Arial, sans-serif; }');
-      win.document.write('.label { width: 5cm; height: 1.6cm; border: 1px solid #000; padding: 1mm; margin: 0 2mm 0 0; display: inline-block; vertical-align: top; box-sizing: border-box; page-break-inside: avoid; }');
-      win.document.write('.label table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }');
-      win.document.write('.label td { padding: 0; vertical-align: middle; }');
-      win.document.write('.qr { width: 1.7cm; text-align: center; }');
-      win.document.write('.qr img { width: 1.3cm; height: 1.3cm; display: block; margin: 0 auto; }');
-      win.document.write('.title { width: 1.3cm; font-size: 6pt; font-weight: 700; text-align: left; line-height: 1.3; }');
-      win.document.write('.info { font-size: 6pt; line-height: 1.3; color: #000; }');
-      win.document.write('.info .row { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }');
-      win.document.write('.info strong { font-weight: 700; }');
-      win.document.write('</style>');
+      if (!win) {
+        alert('Popup diblokir browser. Izinkan pop-up untuk halaman ini.');
+        return null;
+      }
+      win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title>');
+      win.document.write('<style>' + LABEL_CSS + '</style>');
       win.document.write('</head><body>');
-      win.document.write('<div class="label">');
-      win.document.write('  <table>');
-      win.document.write('    <tr>');
-      win.document.write('      <td class="qr"><img src="' + imgSrc + '"></td>');
-      win.document.write('      <td class="title">');
-      win.document.write('        <div>Printer</div>');
-      win.document.write('        <div>PC</div>');
-      win.document.write('        <div>IP PC</div>');
-      win.document.write('        <div>IP Printer</div>');
-      win.document.write('      </td>');
-      win.document.write('      <td class="info">');
-      win.document.write('        <div class="row">' + printer + '</div>');
-      win.document.write('        <div class="row">' + pc + '</div>');
-      win.document.write('        <div class="row">' + ipPc + '</div>');
-      win.document.write('        <div class="row">' + ipPrinter + '</div>');
-      win.document.write('      </td>');
-      win.document.write('    </tr>');
-      win.document.write('  </table>');
-      win.document.write('</div>');
+      win.document.write(bodyHtml);
       win.document.write('<scr' + 'ipt>window.onload=function(){window.print();}</scr' + 'ipt>');
       win.document.write('</body></html>');
       win.document.close();
+      return win;
+    }
+
+    function printQr(args) {
+      var data = Array.isArray(args) ? args : [args.imgSrc, args.title, args.printer, args.pc, args.ipPc, args.ipPrinter];
+      openPrintWindow('Print QR', labelHtml(data[0], data[2], data[3], data[4], data[5]));
     }
 
     function printAll() {
-      var win = window.open('', '_blank', 'width=900,height=600');
-      win.document.write('<!DOCTYPE html><html><head><title>Print Semua QR</title>');
-      win.document.write('<style>');
-      win.document.write('@page { size: auto; margin: 0mm; }');
-      win.document.write('body { margin: 0; padding: 0; font-family: Arial, sans-serif; }');
-      win.document.write('.label-row { white-space: nowrap; margin-bottom: 0; }');
-      win.document.write('.label { width: 5cm; height: 1.6cm; border: 1px solid #000; padding: 1mm; margin: 0 2mm 0 0; display: inline-block; vertical-align: top; box-sizing: border-box; page-break-inside: avoid; }');
-      win.document.write('.label table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }');
-      win.document.write('.label td { padding: 0; vertical-align: middle; }');
-      win.document.write('.qr { width: 1.7cm; text-align: center; }');
-      win.document.write('.qr img { width: 1.3cm; height: 1.3cm; display: block; margin: 0 auto; }');
-      win.document.write('.title { width: 1.3cm; font-size: 6pt; font-weight: 700; text-align: left; line-height: 1.3; }');
-      win.document.write('.info { font-size: 6pt; line-height: 1.3; color: #000; }');
-      win.document.write('.info .row { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }');
-      win.document.write('.info strong { font-weight: 700; }');
-      win.document.write('</style>');
-      win.document.write('</head><body>');
-
-      <?php foreach ($qrResults as $item): ?>
-        win.document.write('<div class="label">');
-        win.document.write('  <table>');
-        win.document.write('    <tr>');
-        win.document.write('      <td class="qr"><img src="<?= htmlspecialchars($item['qr_image']) ?>"></td>');
-        win.document.write('      <td class="title">');
-        win.document.write('        <div>Printer</div>');
-        win.document.write('        <div>PC</div>');
-        win.document.write('        <div>IP PC</div>');
-        win.document.write('        <div>IP Printer</div>');
-        win.document.write('      </td>');
-        win.document.write('      <td class="info">');
-        win.document.write('        <div class="row"><?= htmlspecialchars($item['printer']) ?></div>');
-        win.document.write('        <div class="row"><?= htmlspecialchars($item['pc']) ?></div>');
-        win.document.write('        <div class="row"><?= htmlspecialchars($item['ip_pc']) ?></div>');
-        win.document.write('        <div class="row"><?= htmlspecialchars($item['ip_printer']) ?></div>');
-        win.document.write('      </td>');
-        win.document.write('    </tr>');
-        win.document.write('  </table>');
-        win.document.write('</div>');
-      <?php endforeach; ?>
-
-      win.document.write('<scr' + 'ipt>window.onload=function(){window.print();}</scr' + 'ipt>');
-      win.document.write('</body></html>');
-      win.document.close();
+      var labels = [
+        <?php foreach ($qrResults as $item): ?>
+          <?= json_encode($item['qr_image'], JSON_UNESCAPED_SLASHES) ?>,
+          <?= json_encode($item['printer'], JSON_UNESCAPED_SLASHES) ?>,
+          <?= json_encode($item['pc'], JSON_UNESCAPED_SLASHES) ?>,
+          <?= json_encode($item['ip_pc'], JSON_UNESCAPED_SLASHES) ?>,
+          <?= json_encode($item['ip_printer'], JSON_UNESCAPED_SLASHES) ?>,
+        <?php endforeach; ?>
+      ];
+      var html = '';
+      for (var i = 0; i < labels.length; i += 5) {
+        html += labelHtml(labels[i], labels[i + 1], labels[i + 2], labels[i + 3], labels[i + 4]);
+      }
+      openPrintWindow('Print Semua QR', html);
     }
   </script>
 

@@ -5,7 +5,7 @@
       "type": "local",
       "command": [
         "node",
-        "c:\\Users\\LBL-PC-0028\\.vscode\\extensions\\vexp.vexp-vscode-3.3.1-win32-x64\\dist\\mcp-server.cjs"
+        "c:\\Users\\LBL-PC-0028\\.vscode\\extensions\\vexp.vexp-vscode-3.2.4-win32-x64\\dist\\mcp-server.cjs"
       ],
       "env": {
         "VEXP_WORKSPACE": "d:\\server\\laragon\\www\\newqr"
