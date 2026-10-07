@@ -31,7 +31,7 @@ $dataType = '';
 $printVariant = 'zigzag';
 
 if (isset($_GET['v'])) {
-    $allowedPages = ['home', 'dt', 'im', 'qr', 'print', 'print2', 'login'];
+    $allowedPages = ['home', 'dt', 'im', 'qr', 'print', 'print2', 'login', 'bsom'];
     $page = in_array($_GET['v'], $allowedPages, true) ? $_GET['v'] : 'home';
     $version = $_GET['version'] ?? '';
     $allowedData = ['inhouse', 'sbsite', 'paxar', 'supplier', 'tl', 'additional_label'];
@@ -68,6 +68,8 @@ if (isset($_GET['v'])) {
         $dataType = $m[2];
     } elseif ($route === 'login') {
         $page = 'login';
+    } elseif ($route === 'bsom') {
+        $page = 'bsom';
     }
 }
 ?>
@@ -174,6 +176,7 @@ if (isset($_GET['v'])) {
         <li><a href="/newqr/data-qr" class="<?=($page=='dt')?'active':''?>"><span class="icon">☰</span> Data QR</a></li>
         <li><a href="/newqr/import" class="<?=($page=='im')?'active':''?>"><span class="icon">⤓</span> Import Data</a></li>
         <li><a href="/newqr/buat-qr" class="<?=($page=='qr')?'active':''?>"><span class="icon">◱</span> QR Code PC</a></li>
+        <li><a href="/newqr/bsom" class="<?=($page=='bsom')?'active':''?>"><span class="icon">📂</span> BSOM Files</a></li>
         <li><a href="http://10.10.42.239:8006/abc/" target="_blank" rel="noopener"><span class="icon">⌖</span> BUAT SCAN WIE DLL</a></li>
         <?php if (!empty($_SESSION['user_id'])): ?>
           <li><a href="/newqr/actions/logout.php" class="logout-link"><span class="icon">⏻</span> Logout</a></li>
@@ -213,6 +216,9 @@ if ($page == 'print' && isset($dataType) && $dataType == 'paxar') {
     } elseif ($page == 'qr') {
         require_once __DIR__ . '/app/Presenters/QrGeneratorPresenter.php';
         QrGeneratorPresenter::render($db);
+    } elseif ($page == 'bsom') {
+        require_once __DIR__ . '/app/Presenters/BsomPresenter.php';
+        BsomPresenter::render($db);
     }
 }
 ?>

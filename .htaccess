@@ -65,4 +65,5 @@
     RewriteRule ^print-xerox/([^/]+)/([^/]+)$ index.php [L,QSA]
     RewriteRule ^trigger-label/([^/]+)/([^/]+)$ index.php [L,QSA]
     RewriteRule ^buat-qr$ index.php [L,QSA]
+    RewriteRule ^bsom$ index.php [L,QSA]
 </IfModule>
