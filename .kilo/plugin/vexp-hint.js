@@ -1,5 +1,5 @@
 // vexp-hint: per-prompt orientation + idle verification (fail-open). Managed by vexp.
-const VEXP_BIN = "C:/Users/LBL-PC-0028/.vscode/extensions/vexp.vexp-vscode-3.3.1-win32-x64/binaries/vexp-core-win32-x64/vexp-core.exe";
+const VEXP_BIN = "C:/Users/LBL-PC-0028/.vscode/extensions/vexp.vexp-vscode-3.3.2-win32-x64/binaries/vexp-core-win32-x64/vexp-core.exe";
 const VEXP_AGENT = "kilo";
 export const VexpHint = async ({ directory, client }) => {
   const fs = await import("node:fs");

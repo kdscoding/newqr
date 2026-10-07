@@ -16,8 +16,10 @@ class AdditionalLabelPrintPresenter {
 
         $summaryByItem = [];
         $summaryByNameItem = [];
-        $summaryByNameItemPo = [];
+        $itemRowCount = [];
+        $nameItemRowCount = [];
         $itemPoMap = [];
+        $summaryByNameItemPo = [];
 
         foreach ($rows as $r) {
             $item = isset($r['ITEM']) ? trim((string)$r['ITEM']) : '';
@@ -25,36 +27,39 @@ class AdditionalLabelPrintPresenter {
             $po = isset($r['PO']) ? trim((string)$r['PO']) : '';
             $qty = isset($r['QTY']) ? (float)$r['QTY'] : 0;
 
-            if ($item !== '') {
-                if (!isset($summaryByItem[$item])) {
-                    $summaryByItem[$item] = 0;
+            $itemKey = $item !== '' ? $item : '(UNKNOWN ITEM)';
+            $namaKey = $nama !== '' ? $nama : '(UNKNOWN NAMA)';
+
+            if (!isset($summaryByItem[$itemKey])) {
+                $summaryByItem[$itemKey] = 0;
+                $itemRowCount[$itemKey] = 0;
+            }
+            $summaryByItem[$itemKey] += $qty;
+            $itemRowCount[$itemKey]++;
+
+            $nameItemKey = $namaKey . '|' . $itemKey;
+            if (!isset($summaryByNameItem[$nameItemKey])) {
+                $summaryByNameItem[$nameItemKey] = ['nama' => $namaKey, 'item' => $itemKey, 'qty' => 0];
+                $nameItemRowCount[$nameItemKey] = 0;
+            }
+            $summaryByNameItem[$nameItemKey]['qty'] += $qty;
+            $nameItemRowCount[$nameItemKey]++;
+
+            if ($itemKey !== '' && $po !== '') {
+                if (!isset($itemPoMap[$itemKey])) {
+                    $itemPoMap[$itemKey] = [];
                 }
-                $summaryByItem[$item] += $qty;
+                if (!in_array($po, $itemPoMap[$itemKey], true)) {
+                    $itemPoMap[$itemKey][] = $po;
+                }
             }
 
-            if ($nama !== '' && $item !== '') {
-                $key = $nama . '|' . $item;
-                if (!isset($summaryByNameItem[$key])) {
-                    $summaryByNameItem[$key] = ['nama' => $nama, 'item' => $item, 'qty' => 0];
+            if ($nameItemKey !== '' && $po !== '') {
+                $poKey = $namaKey . '|' . $itemKey . '|' . $po;
+                if (!isset($summaryByNameItemPo[$poKey])) {
+                    $summaryByNameItemPo[$poKey] = ['nama' => $namaKey, 'item' => $itemKey, 'po' => $po, 'qty' => 0];
                 }
-                $summaryByNameItem[$key]['qty'] += $qty;
-            }
-
-            if ($item !== '' && $po !== '') {
-                if (!isset($itemPoMap[$item])) {
-                    $itemPoMap[$item] = [];
-                }
-                if (!in_array($po, $itemPoMap[$item], true)) {
-                    $itemPoMap[$item][] = $po;
-                }
-            }
-
-            if ($nama !== '' && $item !== '' && $po !== '') {
-                $key = $nama . '|' . $item . '|' . $po;
-                if (!isset($summaryByNameItemPo[$key])) {
-                    $summaryByNameItemPo[$key] = ['nama' => $nama, 'item' => $item, 'po' => $po, 'qty' => 0];
-                }
-                $summaryByNameItemPo[$key]['qty'] += $qty;
+                $summaryByNameItemPo[$poKey]['qty'] += $qty;
             }
         }
 

@@ -81,17 +81,11 @@
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($summaryByNameItem as $entry): ?>
         <?php
-          $poList = [];
-          $totalQtyItemName = 0;
-          foreach ($summaryByNameItemPo as $poEntry) {
-            if ($poEntry['nama'] === $entry['nama'] && $poEntry['item'] === $entry['item']) {
-              $poList[] = htmlspecialchars($poEntry['po']);
-              $totalQtyItemName += $poEntry['qty'];
-            }
-          }
-          $totalPo = count($poList);
+          $grandTotalPoNamaItem = 0;
+          foreach ($summaryByNameItem as $entry):
+          $totalPo = isset($nameItemRowCount[$entry['nama'] . '|' . $entry['item']]) ? $nameItemRowCount[$entry['nama'] . '|' . $entry['item']] : 0;
+          $grandTotalPoNamaItem += $totalPo;
         ?>
         <tr>
           <td><?= htmlspecialchars($entry['nama']) ?></td>
@@ -101,7 +95,8 @@
         </tr>
         <?php endforeach ?>
         <tr class="summary-total-row">
-          <td colspan="3"><strong>GRAND TOTAL</strong></td>
+          <td colspan="2"><strong>GRAND TOTAL</strong></td>
+          <td style="text-align:center"><strong><?= $grandTotalPoNamaItem ?></strong></td>
           <td style="text-align:right"><strong><?= number_format(array_sum($summaryByItem), 0, ',', '.') ?></strong></td>
         </tr>
       </tbody>
@@ -124,13 +119,13 @@
         <?php foreach ($summaryByItem as $item => $qty): ?>
         <tr>
           <td><?= htmlspecialchars($item) ?></td>
-          <td style="text-align:center"><?= isset($summaryByItemPo[$item]) ? $summaryByItemPo[$item] : 0 ?></td>
+          <td style="text-align:center"><?= isset($itemRowCount[$item]) ? $itemRowCount[$item] : 0 ?></td>
           <td style="text-align:right"><?= number_format($qty, 0, ',', '.') ?></td>
         </tr>
         <?php endforeach ?>
         <tr class="summary-total-row">
           <td><strong>GRAND TOTAL</strong></td>
-          <td style="text-align:center"><strong><?= number_format(array_sum($summaryByItemPo), 0, ',', '.') ?></strong></td>
+          <td style="text-align:center"><strong><?= number_format(array_sum($itemRowCount), 0, ',', '.') ?></strong></td>
           <td style="text-align:right"><strong><?= number_format(array_sum($summaryByItem), 0, ',', '.') ?></strong></td>
         </tr>
       </tbody>
