@@ -60,24 +60,23 @@ $entryUrl = function ($e) {
     word-break: break-all;
   }
 </style>
-<!-- <div class="hero-section">
-  <h1>📂 BSOM Files <span class="text-muted-custom" style="font-weight:400;font-size:0.6em;">http://10.10.10.98/bsom/</span></h1>
-</div> -->
-
-<div class="card">
-  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-    <span>BSOM Files</span>
-    <a href="<?= BASE_URL ?>/bsom" class="btn btn-sm btn-primary" style="padding:6px 12px;font-size:12px;">↲ Akar BSOM</a>
-  </div>
-
+<div class="hero-section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+  <h1 style="margin:0;">📂 BSOM Files <span class="text-muted-custom" style="font-weight:400;font-size:0.6em;">http://10.10.10.98/bsom/</span></h1>
   <?php if (!empty($breadcrumbs)): ?>
-    <nav class="nav-actions" style="margin-bottom:12px;">
-      <a href="<?= BASE_URL ?>/bsom" class="btn btn-sm" style="background:#f1f5f9;">⌂</a>
+    <nav class="nav-actions" style="margin:0;display:flex;align-items:center;gap:4px;">
+      <a href="<?= BASE_URL ?>/bsom" class="btn btn-sm" style="background:#f1f5f9;padding:4px 8px;font-size:11px;">⌂</a>
       <?php foreach ($breadcrumbs as $crumb): ?>
-        <a href="<?= $crumb['link'] ?>" class="btn btn-sm" style="background:#f1f5f9;"><?= $crumb['label'] ?>/</a>
+        <a href="<?= $crumb['link'] ?>" class="btn btn-sm" style="background:#f1f5f9;padding:4px 8px;font-size:11px;"><?= $crumb['label'] ?>/</a>
       <?php endforeach; ?>
     </nav>
   <?php endif; ?>
+</div>
+
+<div class="card">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <span>Lokasi</span>
+    <a href="<?= BASE_URL ?>/bsom" class="btn btn-sm btn-primary" style="padding:6px 12px;font-size:12px;">↲ Akar BSOM</a>
+  </div>
 
   <p class="text-muted-custom" style="font-size:13px;margin-bottom:12px;word-break:break-all;"><?= $currentDisplay ?></p>
 
