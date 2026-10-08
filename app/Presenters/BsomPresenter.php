@@ -29,6 +29,9 @@ class BsomPresenter
         $searchStats = null;
         $searchError = null;
         $searchTotal = 0;
+        $groupedResults = null;
+        // Auto-group when searching from root with full index available
+        $autoGrouped = ($path === '' && $query !== '');
 
         if ($query !== '') {
             $res = self::searchBsom($query, $path);
@@ -39,6 +42,10 @@ class BsomPresenter
                 $searchError = 'Tidak ada hasil pada cakupan yang discanlei. Coba cari dari folder spesifik (mis. 018. SS27) untuk hasil pasti.';
             } elseif ($res['stats']['partial']) {
                 $searchError = 'Hasil parsial (scanned dalam ' . $res['stats']['requests'] . ' request, batas waktu).';
+            }
+            
+            if ($autoGrouped && $searchTotal > 0) {
+                $groupedResults = self::groupBySeason($searchResults);
             }
         } else {
             $fetchUrl = self::BSOM_SOURCE . $pathEncoded;
@@ -564,5 +571,29 @@ class BsomPresenter
             'results' => $results,
             'stats' => ['requests' => 0, 'folders' => count($index), 'maxDepth' => 0, 'partial' => false, 'fromIndex' => true]
         ];
+    }
+
+    private static function groupBySeason(array $results): array
+    {
+        $groups = [];
+        foreach ($results as $e) {
+            if ($e['isDir']) continue; // only files
+            $rel = $e['rel'];
+            $parts = explode('/', $rel);
+            $season = $parts[0] ?? 'Lainnya';
+            if (!isset($groups[$season])) {
+                $groups[$season] = [];
+            }
+            $groups[$season][] = $e;
+        }
+        // sort seasons naturally
+        uksort($groups, 'strnatcasecmp');
+        // sort files within each season
+        foreach ($groups as &$files) {
+            usort($files, function ($a, $b) {
+                return strnatcasecmp($a['name'], $b['name']);
+            });
+        }
+        return $groups;
     }
 }
