@@ -31,7 +31,7 @@ $dataType = '';
 $printVariant = 'zigzag';
 
 if (isset($_GET['v'])) {
-    $allowedPages = ['home', 'dt', 'im', 'qr', 'print', 'print2', 'login', 'bsom'];
+    $allowedPages = ['home', 'dt', 'im', 'qr', 'print', 'print2', 'login', 'bsom', 'bsom-view'];
     $page = in_array($_GET['v'], $allowedPages, true) ? $_GET['v'] : 'home';
     $version = $_GET['version'] ?? '';
     $allowedData = ['inhouse', 'sbsite', 'paxar', 'supplier', 'tl', 'additional_label'];
@@ -70,6 +70,8 @@ if (isset($_GET['v'])) {
         $page = 'login';
     } elseif ($route === 'bsom') {
         $page = 'bsom';
+    } elseif ($route === 'bsom/view') {
+        $page = 'bsom-view';
     }
 }
 ?>
@@ -219,6 +221,9 @@ if ($page == 'print' && isset($dataType) && $dataType == 'paxar') {
     } elseif ($page == 'bsom') {
         require_once __DIR__ . '/app/Presenters/BsomPresenter.php';
         BsomPresenter::render($db);
+    } elseif ($page == 'bsom-view') {
+        require_once __DIR__ . '/app/Presenters/BsomPresenter.php';
+        BsomPresenter::renderView($db);
     }
 }
 ?>
