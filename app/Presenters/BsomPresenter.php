@@ -97,10 +97,7 @@ class BsomPresenter
             'streamUrl' => null,
             'error' => null,
             'display' => self::BSOM_SOURCE . self::encodeRel($file),
-<<<<<<< HEAD
-=======
             'file' => $file,
->>>>>>> 2ec6909 (Simpan kode terbaru dari lokal)
         ];
 
         if ($file === '' || strpos($file, '..') !== false) {
@@ -127,11 +124,7 @@ class BsomPresenter
             }
         }
 
-<<<<<<< HEAD
-        include BASE_PATH . '/views/bsom-view.php';
-=======
         include BASE_PATH . '/views/bsom.php';
->>>>>>> 2ec6909 (Simpan kode terbaru dari lokal)
     }
 
     private static function fetch($url)
