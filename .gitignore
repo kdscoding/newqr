@@ -2,3 +2,10 @@ FILE/
 QR/
 not_used/
 file_import_scan_master/
+
+.vexp/
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+*.log
