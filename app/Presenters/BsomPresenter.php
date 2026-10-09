@@ -98,7 +98,14 @@ class BsomPresenter
             'error' => null,
             'display' => self::BSOM_SOURCE . self::encodeRel($file),
             'file' => $file,
+            'back' => null,
         ];
+
+        // Back link target (only internal /bsom URLs allowed)
+        $back = isset($_GET['back']) ? (string)$_GET['back'] : '';
+        if ($back !== '' && $back[0] === '/' && strncmp($back, '//', 2) !== 0 && strpos($back, BASE_URL . '/bsom') === 0) {
+            $viewData['back'] = $back;
+        }
 
         if ($file === '' || strpos($file, '..') !== false) {
             $viewData['error'] = 'Berkas tidak valid.';
@@ -600,9 +607,11 @@ class BsomPresenter
             }
             $groups[$season][] = $e;
         }
-        // sort seasons naturally
-        uksort($groups, 'strnatcasecmp');
-        // sort files within each season
+        // sort seasons by name, Z to A
+        uksort($groups, function ($a, $b) {
+            return strnatcasecmp($b, $a);
+        });
+        // sort files within each season by name
         foreach ($groups as &$files) {
             usort($files, function ($a, $b) {
                 return strnatcasecmp($a['name'], $b['name']);

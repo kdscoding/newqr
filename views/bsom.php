@@ -1,12 +1,47 @@
 <?php
 /**
- * BSOM - Unified page: browse, search, and file preview
+ * BSOM - Unified shell: browse/search page (with inline previews) + per-file view page
  */
 
 $viewMode = isset($viewData);
 $v = $viewMode ? $viewData : null;
 
-// Helpers (browse mode only)
+// File type helpers
+$previewType = function ($name) {
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    if ($ext === 'pdf') return 'pdf';
+    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'])) return 'image';
+    if (in_array($ext, ['txt', 'log', 'csv', 'json', 'html', 'htm', 'css', 'js', 'xml', 'ini'])) return 'text';
+    return 'none';
+};
+
+$iconFor = function ($type) {
+    return $type === 'pdf' ? '📄' : ($type === 'image' ? '🖼️' : ($type === 'text' ? '📝' : '📄'));
+};
+
+$streamUrlFor = function ($rel) {
+    $enc = implode('/', array_map('rawurlencode', explode('/', $rel)));
+    return BASE_URL . '/actions/bsom-stream.php?file=' . $enc;
+};
+
+// Inline preview markup for search results (lazy-loaded, empty when not previewable)
+$inlinePreview = function ($name, $rel) use ($previewType, $streamUrlFor) {
+    $type = $previewType($name);
+    $stream = $streamUrlFor($rel);
+    $nameAttr = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    if ($type === 'pdf') {
+        return '<div class="bsom-preview"><iframe src="' . htmlspecialchars($stream, ENT_QUOTES, 'UTF-8') . '" type="application/pdf" loading="lazy" title="' . $nameAttr . '"></iframe></div>';
+    }
+    if ($type === 'image') {
+        return '<div class="bsom-preview"><img src="' . htmlspecialchars($stream, ENT_QUOTES, 'UTF-8') . '" alt="' . $nameAttr . '" loading="lazy"></div>';
+    }
+    if ($type === 'text') {
+        return '<div class="bsom-preview"><pre data-src="' . htmlspecialchars($stream, ENT_QUOTES, 'UTF-8') . '">Memuat…</pre></div>';
+    }
+    return '';
+};
+
+// Browse mode helpers
 if (!$viewMode) {
     $sortUrl = function ($col, $dir) use ($pathEncoded) {
         $sep = ($pathEncoded !== '') ? '?path=' . $pathEncoded . '&' : '?';
@@ -18,6 +53,28 @@ if (!$viewMode) {
         $active = ($sortCol === $col) ? ' active' : '';
         $arrow = ($sortCol === $col) ? '<span class="sort-arrow">' . ($sortDir === 'asc' ? '↑' : '↓') . '</span>' : '';
         return '<a href="' . $sortUrl($col, $nextDir) . '" class="sortable' . $active . '">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . $arrow . '</a>';
+    };
+
+    // Current search URL, used as back-link target from file view pages
+    $searchBackUrl = '';
+    if (($query ?? '') !== '') {
+        $params = ['q=' . rawurlencode($query)];
+        if (($pathEncoded ?? '') !== '') $params[] = 'path=' . $pathEncoded;
+        if (($sortCol ?? 'name') !== 'name') $params[] = 'sort=' . $sortCol;
+        if (($sortDir ?? 'asc') !== 'asc') $params[] = 'dir=' . $sortDir;
+        $searchBackUrl = BASE_URL . '/bsom?' . implode('&', $params);
+    }
+
+    // Action buttons for a file: open its own view page (+ optional download)
+    $fileActions = function ($viewUrl, $downloadUrl) use ($searchBackUrl) {
+        $url = $viewUrl . ($searchBackUrl !== '' ? '&back=' . rawurlencode($searchBackUrl) : '');
+        $out = '<div class="bsom-actions">';
+        $out .= '<a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '" class="btn-modern btn-modern-primary btn-modern-sm">Lihat</a>';
+        if (!empty($downloadUrl)) {
+            $out .= '<a href="' . htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') . '" class="btn-modern btn-modern-ghost btn-modern-sm">Unduh</a>';
+        }
+        $out .= '</div>';
+        return $out;
     };
 }
 
@@ -44,79 +101,50 @@ if ($crumbPath !== '' && $crumbPath !== '.') {
     }
 }
 
-// Back link (view mode) -> folder containing the file
+// Back link (view mode): search results when coming from search, else parent folder
 $backUrl = BASE_URL . '/bsom';
-if ($viewMode && $file !== '') {
-    $parent = dirname($file);
-    if ($parent !== '' && $parent !== '.') {
-        $backUrl .= '?path=' . implode('/', array_map('rawurlencode', explode('/', $parent)));
+$backLabel = '← Kembali';
+if ($viewMode) {
+    if (!empty($v['back'])) {
+        $backUrl = $v['back'];
+        $backLabel = '← Kembali ke pencarian';
+    } elseif ($file !== '') {
+        $parent = dirname($file);
+        if ($parent !== '' && $parent !== '.') {
+            $backUrl .= '?path=' . implode('/', array_map('rawurlencode', explode('/', $parent)));
+        }
     }
 }
-
-// File helpers
-$previewType = function ($name) {
-    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-    if ($ext === 'pdf') return 'pdf';
-    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'])) return 'image';
-    if (in_array($ext, ['txt', 'log', 'csv', 'json', 'html', 'htm', 'css', 'js', 'xml', 'ini'])) return 'text';
-    return 'none';
-};
-
-$iconFor = function ($type) {
-    return $type === 'pdf' ? '📄' : ($type === 'image' ? '🖼️' : ($type === 'text' ? '📝' : '📄'));
-};
-
-$streamUrlFor = function ($rel) {
-    $enc = implode('/', array_map('rawurlencode', explode('/', $rel)));
-    return BASE_URL . '/actions/bsom-stream.php?file=' . $enc;
-};
-
-// Action buttons for a file (inline preview when previewable, otherwise full page)
-$fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType, $streamUrlFor) {
-    $type = $previewType($name);
-    $out = '<div class="bsom-actions">';
-    if ($type !== 'none') {
-        $out .= '<a href="' . htmlspecialchars($viewUrl, ENT_QUOTES, 'UTF-8') . '" class="btn-modern btn-modern-primary btn-modern-sm js-preview" data-type="' . $type . '" data-stream="' . htmlspecialchars($streamUrlFor($rel), ENT_QUOTES, 'UTF-8') . '">Lihat</a>';
-    } else {
-        $out .= '<a href="' . htmlspecialchars($viewUrl, ENT_QUOTES, 'UTF-8') . '" class="btn-modern btn-modern-primary btn-modern-sm">Lihat</a>';
-    }
-    if (!empty($downloadUrl)) {
-        $out .= '<a href="' . htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') . '" class="btn-modern btn-modern-ghost btn-modern-sm">Unduh</a>';
-    }
-    $out .= '</div>';
-    return $out;
-};
 ?>
 
 <style>
     .bsom-wrapper {
         width: 100%;
-        padding: 4px 0 40px;
+        padding: 4px 0 24px;
     }
 
-    /* Header */
+    /* Header + Search */
     .bsom-page-header {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
         gap: 16px;
         flex-wrap: wrap;
-        margin-bottom: 24px;
+        margin-bottom: 12px;
+    }
+
+    .bsom-header-info {
+        flex: 1;
+        min-width: 0;
     }
 
     .bsom-page-title {
-        font-size: 24px;
+        font-size: 20px;
         font-weight: 700;
         color: #0f172a;
-        margin: 0 0 6px;
+        margin: 0;
         letter-spacing: -0.02em;
         word-break: break-word;
-    }
-
-    .bsom-page-subtitle {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0;
     }
 
     /* Breadcrumbs */
@@ -124,9 +152,9 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
         display: flex;
         align-items: center;
         flex-wrap: wrap;
-        gap: 4px;
-        margin-bottom: 16px;
-        font-size: 13px;
+        gap: 3px;
+        margin: 4px 0 0;
+        font-size: 12px;
     }
 
     .bsom-breadcrumbs a {
@@ -161,18 +189,20 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
     .bsom-search-form {
         display: flex;
         gap: 8px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        align-items: center;
+        flex: 1 1 300px;
+        justify-content: flex-end;
+        max-width: 460px;
     }
 
     .bsom-search-input {
         flex: 1;
-        min-width: 240px;
-        max-width: 420px;
-        padding: 10px 14px;
+        min-width: 140px;
+        padding: 8px 12px;
         border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        font-size: 14px;
+        border-radius: 8px;
+        font-size: 13px;
         color: #0f172a;
         background: #fff;
         transition: all 0.15s ease;
@@ -239,9 +269,14 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
 
     /* Stats */
     .bsom-stats {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
         font-size: 13px;
         color: #64748b;
-        margin-bottom: 16px;
+        margin-bottom: 12px;
     }
 
     .bsom-stats strong {
@@ -250,6 +285,12 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
 
     .bsom-stats .warning {
         color: #f59e0b;
+    }
+
+    .bsom-stats-loc {
+        color: #94a3b8;
+        font-size: 12px;
+        word-break: break-all;
     }
 
     /* Card */
@@ -298,7 +339,7 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
         background: #f8fafc;
     }
 
-    .bsom-detail-row td {
+    .bsom-preview-row td {
         padding: 0 20px 14px;
         border-bottom: 1px solid #f1f5f9;
         background: #f8fafc;
@@ -418,7 +459,7 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
         min-width: 0;
     }
 
-    /* Preview (shared by inline listing previews and file view) */
+    /* Inline preview (search results) */
     .bsom-preview {
         margin-top: 10px;
         padding: 10px;
@@ -453,9 +494,11 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
         border-radius: 6px;
         border: 1px solid #e2e8f0;
         line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
     }
 
-    /* File view mode */
+    /* File view page */
     .bsom-view-preview {
         padding: 20px;
         min-height: 160px;
@@ -542,64 +585,71 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
     /* Responsive */
     @media (max-width: 768px) {
         .bsom-page-title {
-            font-size: 20px;
+            font-size: 18px;
+        }
+
+        .bsom-page-header {
+            align-items: flex-start;
+        }
+
+        .bsom-search-form {
+            flex-basis: 100%;
+            max-width: none;
         }
 
         .bsom-table th:nth-child(2),
         .bsom-table td:nth-child(2) {
             display: none;
         }
+
+        .bsom-preview-row td:nth-child(1) {
+            display: table-cell;
+        }
     }
 </style>
 
 <div class="bsom-wrapper">
-    <!-- Page Header -->
+    <!-- Page Header + Search -->
     <div class="bsom-page-header">
-        <div>
+        <div class="bsom-header-info">
             <h1 class="bsom-page-title"><?= $viewMode ? htmlspecialchars($v['name'] !== '' ? $v['name'] : 'Lihat Berkas', ENT_QUOTES, 'UTF-8') : 'BSOM Files' ?></h1>
-            <p class="bsom-page-subtitle"><?= $viewMode ? 'Pratinjau berkas dari server BSOM' : 'Telusuri dan unduh berkas dari server BSOM' ?></p>
+            <?php if (!empty($breadcrumbs)): ?>
+                <nav class="bsom-breadcrumbs" aria-label="Breadcrumb">
+                    <a href="<?= BASE_URL ?>/bsom" class="home">⌂ Root</a>
+                    <?php foreach ($breadcrumbs as $i => $crumb): ?>
+                        <span class="separator">/</span>
+                        <?php if (!$viewMode && $i === count($breadcrumbs) - 1): ?>
+                            <span class="current"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                        <?php else: ?>
+                            <a href="<?= $crumb['link'] ?>"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></a>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </nav>
+            <?php endif; ?>
         </div>
-        <?php if (!$viewMode): ?>
-            <a href="<?= BASE_URL ?>/bsom" class="btn-modern btn-modern-ghost btn-modern-sm">↲ Akar</a>
-        <?php endif; ?>
+        <form method="get" action="<?= BASE_URL ?>/bsom" class="bsom-search-form">
+            <?php if (!$viewMode && ($pathEncoded ?? '') !== ''): ?>
+                <input type="hidden" name="path" value="<?= htmlspecialchars($pathEncoded, ENT_QUOTES, 'UTF-8') ?>">
+            <?php endif; ?>
+            <input type="text" id="bsomSearch" name="q" class="bsom-search-input" value="<?= htmlspecialchars($query ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Cari berkas atau folder...">
+            <button type="submit" class="btn-modern btn-modern-primary btn-modern-sm">Cari</button>
+            <?php if (($query ?? '') !== ''): ?>
+                <a href="<?= BASE_URL ?>/bsom<?= ($pathEncoded ?? '') !== '' ? '?path=' . $pathEncoded : '' ?>" class="btn-modern btn-modern-ghost btn-modern-sm">Bersihkan</a>
+            <?php endif; ?>
+        </form>
     </div>
 
-    <!-- Breadcrumbs -->
-    <?php if (!empty($breadcrumbs)): ?>
-        <nav class="bsom-breadcrumbs" aria-label="Breadcrumb">
-            <a href="<?= BASE_URL ?>/bsom" class="home">⌂ Root</a>
-            <?php foreach ($breadcrumbs as $i => $crumb): ?>
-                <span class="separator">/</span>
-                <?php if (!$viewMode && $i === count($breadcrumbs) - 1): ?>
-                    <span class="current"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                <?php else: ?>
-                    <a href="<?= $crumb['link'] ?>"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></a>
-                <?php endif; ?>
-            <?php endforeach; ?>
-        </nav>
-    <?php endif; ?>
-
-    <!-- Search (available in both modes) -->
-    <form method="get" action="<?= BASE_URL ?>/bsom" class="bsom-search-form">
-        <?php if (!$viewMode && ($pathEncoded ?? '') !== ''): ?>
-            <input type="hidden" name="path" value="<?= htmlspecialchars($pathEncoded, ENT_QUOTES, 'UTF-8') ?>">
-        <?php endif; ?>
-        <input type="text" id="bsomSearch" name="q" class="bsom-search-input" value="<?= htmlspecialchars($query ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Cari berkas atau folder...">
-        <button type="submit" class="btn-modern btn-modern-primary">Cari</button>
-        <?php if (($query ?? '') !== ''): ?>
-            <a href="<?= BASE_URL ?>/bsom<?= ($pathEncoded ?? '') !== '' ? '?path=' . $pathEncoded : '' ?>" class="btn-modern btn-modern-ghost">Bersihkan</a>
-        <?php endif; ?>
-    </form>
-
 <?php if ($viewMode): ?>
-    <!-- ============ VIEW MODE ============ -->
+    <!-- ============ FILE VIEW PAGE ============ -->
     <?php if ($v['error'] !== null): ?>
         <div class="bsom-error"><?= $v['error'] ?></div>
     <?php else: ?>
         <div class="bsom-stats">
-            <?= $v['size'] !== '' ? htmlspecialchars($v['size'], ENT_QUOTES, 'UTF-8') : '-' ?>
-            <?php if ($v['mime'] !== ''): ?> · <?= htmlspecialchars($v['mime'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
-            <?php if ($v['modified'] !== ''): ?> · <?= htmlspecialchars($v['modified'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
+            <span>
+                <?= $v['size'] !== '' ? htmlspecialchars($v['size'], ENT_QUOTES, 'UTF-8') : '-' ?>
+                <?php if ($v['mime'] !== ''): ?> · <?= htmlspecialchars($v['mime'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
+                <?php if ($v['modified'] !== ''): ?> · <?= htmlspecialchars($v['modified'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
+            </span>
         </div>
         <div class="bsom-card">
             <div class="bsom-view-preview">
@@ -634,21 +684,24 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
                 <?php if (!empty($v['downloadUrl'])): ?>
                     <a href="<?= $v['downloadUrl'] ?>" class="btn-modern btn-modern-success">⬇ Unduh Berkas</a>
                 <?php endif; ?>
-                <a href="<?= $backUrl ?>" class="btn-modern btn-modern-ghost">← Kembali</a>
+                <a href="<?= htmlspecialchars($backUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn-modern btn-modern-ghost"><?= $backLabel ?></a>
             </div>
         </div>
     <?php endif; ?>
 
 <?php else: ?>
-    <!-- ============ BROWSE / SEARCH MODE ============ -->
+    <!-- ============ BROWSE / SEARCH PAGE ============ -->
 
     <!-- Stats -->
     <?php if (($query ?? '') !== '' && $searchTotal > 0 && !empty($searchStats)): ?>
         <div class="bsom-stats">
-            <strong><?= $searchTotal ?></strong> hasil untuk "<strong><?= htmlspecialchars($query, ENT_QUOTES, 'UTF-8') ?></strong>"
-            <?php if (!empty($searchStats['partial'])): ?>
-                <span class="warning">· <?= htmlspecialchars($searchError ?? 'hasil parsial', ENT_QUOTES, 'UTF-8') ?></span>
-            <?php endif; ?>
+            <span>
+                <strong><?= $searchTotal ?></strong> hasil untuk "<strong><?= htmlspecialchars($query, ENT_QUOTES, 'UTF-8') ?></strong>"
+                <?php if (!empty($searchStats['partial'])): ?>
+                    <span class="warning">· <?= htmlspecialchars($searchError ?? 'hasil parsial', ENT_QUOTES, 'UTF-8') ?></span>
+                <?php endif; ?>
+            </span>
+            <span class="bsom-stats-loc"><?= $path === '' ? 'seluruh bsom' : htmlspecialchars($path, ENT_QUOTES, 'UTF-8') ?></span>
         </div>
     <?php endif; ?>
 
@@ -665,7 +718,7 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
 
     <?php elseif (($query ?? '') !== '' && $searchTotal > 0): ?>
         <?php if ($autoGrouped && !empty($groupedResults)): ?>
-            <!-- Grouped Search Results -->
+            <!-- Grouped Search Results (with inline preview) -->
             <?php foreach ($groupedResults as $season => $files): ?>
                 <div class="bsom-group">
                     <div class="bsom-group-header">
@@ -677,7 +730,6 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
                             $type = $previewType($f['name']);
                             $encRel = implode('/', array_map('rawurlencode', explode('/', $f['rel'])));
                             $viewUrl = BASE_URL . '/bsom/view?file=' . $encRel;
-                            $streamUrl = BASE_URL . '/actions/bsom-stream.php?file=' . $encRel;
                             $downloadUrl = BASE_URL . '/actions/bsom-download.php?file=' . $encRel;
                         ?>
                             <div class="bsom-file-block">
@@ -690,9 +742,9 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
                                             <div class="bsom-meta"><?= htmlspecialchars($f['modified'], ENT_QUOTES, 'UTF-8') ?></div>
                                         <?php endif; ?>
                                     </div>
-                                    <?= $fileActions($f['name'], $viewUrl, $downloadUrl, $f['rel']) ?>
+                                    <?= $fileActions($viewUrl, $downloadUrl) ?>
                                 </div>
-                                <div class="bsom-preview" hidden></div>
+                                <?= $inlinePreview($f['name'], $f['rel']) ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -700,13 +752,12 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
             <?php endforeach; ?>
 
         <?php else: ?>
-            <!-- Search Results Table -->
+            <!-- Search Results Table (with inline preview rows) -->
             <div class="bsom-card">
                 <table class="bsom-table">
                     <thead>
                         <tr>
                             <th>Nama</th>
-                            <th>Lokasi</th>
                             <th>Update</th>
                             <th>Aksi</th>
                         </tr>
@@ -717,10 +768,12 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
                                 <td>
                                     <div class="bsom-file-cell">
                                         <span class="bsom-icon"><?= ($e['isDir'] ? '📁' : '📄') ?></span>
-                                        <span class="bsom-file-name"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                        <div class="bsom-file-info">
+                                            <div class="bsom-file-name"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></div>
+                                            <div class="bsom-meta bsom-loc"><?= $e['rel'] !== '' ? htmlspecialchars($e['rel'], ENT_QUOTES, 'UTF-8') : '—' ?></div>
+                                        </div>
                                     </div>
                                 </td>
-                                <td class="bsom-loc bsom-meta"><?= $e['rel'] !== '' ? htmlspecialchars($e['rel'], ENT_QUOTES, 'UTF-8') : '—' ?></td>
                                 <td class="bsom-meta"><?= $e['modified'] !== '' ? htmlspecialchars($e['modified'], ENT_QUOTES, 'UTF-8') : '-' ?></td>
                                 <td>
                                     <?php if ($e['isDir']): ?>
@@ -728,13 +781,18 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
                                             <a href="<?= $e['link'] ?>" class="btn-modern btn-modern-primary btn-modern-sm">Buka</a>
                                         </div>
                                     <?php else: ?>
-                                        <?= $fileActions($e['name'], $e['viewUrl'], $e['downloadUrl'], $e['rel']) ?>
+                                        <?= $fileActions($e['viewUrl'], $e['downloadUrl']) ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>
-                            <?php if (!$e['isDir']): ?>
-                                <tr class="bsom-detail-row" hidden><td colspan="4"><div class="bsom-preview"></div></td></tr>
-                            <?php endif; ?>
+                            <?php if (!$e['isDir']):
+                                $pv = $inlinePreview($e['name'], $e['rel']);
+                                if ($pv !== ''):
+                            ?>
+                                <tr class="bsom-preview-row"><td colspan="3"><?= $pv ?></td></tr>
+                            <?php
+                                endif;
+                            endif; ?>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
@@ -779,13 +837,10 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
                                         <a href="<?= $e['link'] ?>" class="btn-modern btn-modern-primary btn-modern-sm">Buka</a>
                                     </div>
                                 <?php else: ?>
-                                    <?= $fileActions($e['name'], $e['viewUrl'], $e['downloadUrl'], $e['rel']) ?>
+                                    <?= $fileActions($e['viewUrl'], $e['downloadUrl']) ?>
                                 <?php endif; ?>
                             </td>
                         </tr>
-                        <?php if (!$e['isDir']): ?>
-                            <tr class="bsom-detail-row" hidden><td colspan="4"><div class="bsom-preview"></div></td></tr>
-                        <?php endif; ?>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -796,59 +851,18 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
 
 <script>
 (function() {
-    // Inline preview toggle (search results + directory listing)
-    function findPreviewBox(btn) {
-        var tr = btn.closest('tr.bsom-row');
-        if (tr) {
-            var next = tr.nextElementSibling;
-            if (next && next.classList.contains('bsom-detail-row')) {
-                return next.querySelector('.bsom-preview');
-            }
-        }
-        var block = btn.closest('.bsom-file-block');
-        if (block) return block.querySelector('.bsom-preview');
-        return null;
-    }
-
-    document.querySelectorAll('.js-preview').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            var box = findPreviewBox(btn);
-            if (!box) return;
-
-            if (!box.hasAttribute('hidden')) {
-                box.setAttribute('hidden', '');
-                btn.textContent = 'Lihat';
-                return;
-            }
-
-            box.removeAttribute('hidden');
-            btn.textContent = 'Tutup';
-
-            if (box.dataset.loaded === '1') return;
-            box.dataset.loaded = '1';
-
-            var type = btn.getAttribute('data-type') || 'none';
-            var stream = btn.getAttribute('data-stream') || '';
-
-            if (type === 'pdf') {
-                box.innerHTML = '<iframe src="' + stream + '" type="application/pdf"></iframe>';
-            } else if (type === 'image') {
-                box.innerHTML = '<img src="' + stream + '" alt="">';
-            } else if (type === 'text') {
-                box.innerHTML = '<pre>Memuat…</pre>';
-                fetch(stream).then(function(r) { return r.text(); }).then(function(t) {
-                    var pre = box.querySelector('pre');
-                    if (pre) pre.textContent = t || '(berkas kosong)';
-                }).catch(function() {
-                    var pre = box.querySelector('pre');
-                    if (pre) pre.textContent = 'Gagal memuat pratinjau.';
-                });
-            }
+    // Load text previews (fetch after page render so the list appears instantly)
+    document.querySelectorAll('pre[data-src]').forEach(function(pre) {
+        var src = pre.getAttribute('data-src');
+        if (!src) return;
+        fetch(src).then(function(r) { return r.text(); }).then(function(t) {
+            pre.textContent = t || '(berkas kosong)';
+        }).catch(function() {
+            pre.textContent = 'Gagal memuat pratinjau.';
         });
     });
 
-    // Client-side row filter (refines current table only)
+    // Client-side row filter (refines current table only, keeps preview rows in sync)
     var search = document.getElementById('bsomSearch');
     var tbody = document.getElementById('bsomTbody');
     if (search && tbody) {
@@ -859,8 +873,8 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
             if (q === '') {
                 rows.forEach(function(tr) {
                     tr.style.display = '';
-                    var next = tr.nextElementSibling;
-                    if (next && next.classList.contains('bsom-detail-row')) next.style.display = '';
+                    var pv = tr.nextElementSibling;
+                    if (pv && pv.classList.contains('bsom-preview-row')) pv.style.display = '';
                 });
                 return;
             }
@@ -871,8 +885,8 @@ $fileActions = function ($name, $viewUrl, $downloadUrl, $rel) use ($previewType,
                 var loc = locEl ? locEl.textContent.toLowerCase() : '';
                 var visible = (name.indexOf(q) !== -1 || loc.indexOf(q) !== -1);
                 tr.style.display = visible ? '' : 'none';
-                var next = tr.nextElementSibling;
-                if (next && next.classList.contains('bsom-detail-row')) next.style.display = visible ? '' : 'none';
+                var pv = tr.nextElementSibling;
+                if (pv && pv.classList.contains('bsom-preview-row')) pv.style.display = visible ? '' : 'none';
             });
         });
     }
