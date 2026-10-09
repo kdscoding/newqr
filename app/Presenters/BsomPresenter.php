@@ -103,7 +103,7 @@ class BsomPresenter
             $viewData['error'] = 'Berkas tidak valid.';
         } else {
             $url = self::BSOM_SOURCE . self::encodeRel($file);
-            $data = self::fetchRaw($url, $viewData['mime'], $viewData['size']);
+            $data = self::fetchRaw($url, $viewData['mime'], $viewData['size'], $viewData['modified']);
             if ($data === false) {
                 $viewData['error'] = 'Gagal mengambil berkas dari server bsom.';
             } else {
@@ -145,7 +145,7 @@ class BsomPresenter
         return $data;
     }
 
-    private static function fetchRaw(string $url, string &$mime, string &$size)
+    private static function fetchRaw(string $url, string &$mime, string &$size, string &$modified)
     {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -153,17 +153,30 @@ class BsomPresenter
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_TIMEOUT => 30,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_HEADER => false,
+            CURLOPT_HEADER => true,
+            CURLOPT_NOBODY => false,
         ]);
-        $data = curl_exec($ch);
+        $response = curl_exec($ch);
         $errno = curl_errno($ch);
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         $mime = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'application/octet-stream';
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        if ($errno || $code !== 200 || $data === false) {
+        if ($errno || $code !== 200 || $response === false) {
             return false;
         }
+        $headers = substr($response, 0, $headerSize);
+        $data = substr($response, $headerSize);
         $size = self::humanSize(strlen($data));
+        $modified = '';
+        if (preg_match('/Last-Modified:\s*(.+)\r?\n/i', $headers, $m)) {
+            $ts = strtotime(trim($m[1]));
+            if ($ts !== false) {
+                $modified = date('Y-m-d H:i:s', $ts);
+            } else {
+                $modified = trim($m[1]);
+            }
+        }
         return $data;
     }
 

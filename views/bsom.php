@@ -61,20 +61,31 @@ $entryUrl = function ($e) {
   }
 </style>
 <div class="card">
-  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-    <span>BSOM Files</span>
-    <!-- <?= $currentDisplay ?> -->
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap;">
+      <span style="font-size:15px;font-weight:600;white-space:nowrap;">BSOM Files</span>
 
-    <?php if (!empty($breadcrumbs)): ?>
-      <nav class="nav-actions" style="margin:0;display:flex;align-items:center;gap:4px;">
-        <a href="<?= BASE_URL ?>/bsom" class="btn btn-sm" style="background:#f1f5f9;padding:4px 8px;font-size:11px;">⌂</a>
-        <?php foreach ($breadcrumbs as $crumb): ?>
-          <a href="<?= $crumb['link'] ?>" class="btn btn-sm" style="background:#f1f5f9;padding:4px 8px;font-size:11px;"><?= $crumb['label'] ?>/</a>
-        <?php endforeach; ?>
-      </nav>
-    <?php endif; ?>
+      <?php if ($path !== ''): ?>
+        <?php
+          $segments = array_filter(explode('/', $path), fn($s) => $s !== '');
+          $acc = '';
+        ?>
+        <nav style="display:flex;align-items:center;gap:2px;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:2px 4px;max-width:100%;overflow:auto;scrollbar-width:thin;">
+          <a href="<?= BASE_URL ?>/bsom" class="text-decoration-none" style="display:inline-flex;align-items:center;padding:2px 6px;font-size:11px;color:#334155;line-height:1.2;white-space:nowrap;border-radius:4px;transition:.15s ease;" title="Akar BSOM" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'">⌂</a>
+          <?php foreach ($segments as $i => $seg): ?>
+            <?php $acc = $acc === '' ? $seg : $acc . '/' . $seg; ?>
+            <span style="color:#cbd5e1;font-size:11px;line-height:1;padding:0 1px;">/</span>
+            <?php if ($i === count($segments) - 1): ?>
+              <span style="display:inline-flex;align-items:center;padding:2px 6px;font-size:11px;color:#0f172a;font-weight:600;line-height:1.2;white-space:normal;word-break:break-word;"><?= htmlspecialchars($seg, ENT_QUOTES, 'UTF-8') ?></span>
+            <?php else: ?>
+              <a href="<?= BASE_URL . '/bsom?path=' . implode('/', array_map('rawurlencode', explode('/', $acc))) ?>" class="text-decoration-none" style="display:inline-flex;align-items:center;padding:2px 6px;font-size:11px;color:#3b82f6;line-height:1.2;white-space:nowrap;border-radius:4px;transition:.15s ease;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'"><?= htmlspecialchars($seg, ENT_QUOTES, 'UTF-8') ?></a>
+            <?php endif; ?>
+          <?php endforeach; ?>
+        </nav>
+      <?php endif; ?>
+    </div>
 
-    <a href="<?= BASE_URL ?>/bsom" class="btn btn-sm btn-primary" style="padding:6px 12px;font-size:12px;">↲ Akar BSOM</a>
+    <a href="<?= BASE_URL ?>/bsom" class="btn btn-sm btn-primary" style="padding:6px 10px;font-size:12px;white-space:nowrap;">↲ Akar BSOM</a>
   </div>
   <form method="get" action="<?= BASE_URL ?>/bsom" class="bsom-search-row" style="margin-bottom:14px;">
     <input type="text" id="bsomSearch" name="q" class="form-control bsom-search" value="<?= htmlspecialchars($query ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="🔍 Cari berkas/folder di seluruh bsom..." style="max-width:360px;">
@@ -246,9 +257,12 @@ $entryUrl = function ($e) {
               <div class="file-info">
                 <div class="file-name"><?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?></div>
                 <div class="file-path"><?= htmlspecialchars($f['rel'], ENT_QUOTES, 'UTF-8') ?></div>
+                <?php if ($f['modified'] !== ''): ?>
+                  <div class="file-path" style="color:#64748b;font-size:11px;margin-top:2px;"><?= htmlspecialchars($f['modified'], ENT_QUOTES, 'UTF-8') ?></div>
+                <?php endif; ?>
                 <?php if ($isPdf): ?>
                   <div class="file-preview">
-                    <iframe src="<?= $streamUrl ?>#toolbar=0&navpanes=0" title="<?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?>"></iframe>
+                    <iframe src="<?= $streamUrl ?>" type="application/pdf" style="width:100%;height:600px;border:none;border-radius:8px;" title="<?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?>"></iframe>
                   </div>
                 <?php elseif ($isImage): ?>
                   <div class="file-preview">
@@ -260,9 +274,10 @@ $entryUrl = function ($e) {
                   </div>
                 <?php endif; ?>
               </div>
-              <div class="file-actions">
-                <a href="<?= $downloadUrl ?>" class="btn btn-sm btn-primary">⬇️ Download</a>
-              </div>
+               <div class="file-actions">
+                 <a href="<?= $viewUrl ?>" class="btn btn-sm btn-primary">👁️ Lihat</a>
+                 <a href="<?= $downloadUrl ?>" class="btn btn-sm btn-success">⬇️ Download</a>
+               </div>
             </div>
           <?php endforeach; ?>
         </div>
@@ -271,23 +286,25 @@ $entryUrl = function ($e) {
       <table class="table">
         <thead>
           <tr>
-            <th style="width:40%;">Nama</th>
-            <th style="width:45%;">Lokasi (folder)</th>
-            <th style="width:15%;">Aksi</th>
+           <th style="width:40%;">Nama</th>
+           <th style="width:30%;">Lokasi (folder)</th>
+           <th style="width:20%;">Update</th>
+           <th style="width:10%;">Aksi</th>
           </tr>
         </thead>
         <tbody id="bsomTbody">
           <?php foreach ($searchResults as $e): ?>
             <tr class="bsom-row" data-name="<?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?>">
-              <td class="bsom-name"><?= ($e['isDir'] ? '📁 ' : '📄 ') . $e['name'] ?></td>
-              <td class="bsom-loc" style="font-size:13px;color:#64748b;"><?= ($e['rel'] !== '' ? $e['rel'] : ' — ') ?></td>
-              <td>
-                <?php if ($e['isDir']): ?>
-                  <a href="<?= $e['link'] ?>" class="btn btn-sm btn-primary">Buka</a>
-                <?php else: ?>
-                  <a href="<?= $e['viewUrl'] ?>" class="btn btn-sm btn-primary">👁️ Lihat</a>
-                <?php endif; ?>
-              </td>
+               <td class="bsom-name"><?= ($e['isDir'] ? '📁 ' : '📄 ') . $e['name'] ?></td>
+               <td class="bsom-loc" style="font-size:13px;color:#64748b;"><?= ($e['rel'] !== '' ? $e['rel'] : ' — ') ?></td>
+               <td class="muted" style="font-size:13px;color:#64748b;"><?= ($e['modified'] !== '' ? $e['modified'] : '-') ?></td>
+               <td>
+                 <?php if ($e['isDir']): ?>
+                   <a href="<?= $e['link'] ?>" class="btn btn-sm btn-primary">Buka</a>
+                 <?php else: ?>
+                   <a href="<?= $e['viewUrl'] ?>" class="btn btn-sm btn-primary">👁️ Lihat</a>
+                 <?php endif; ?>
+               </td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -299,10 +316,10 @@ $entryUrl = function ($e) {
     <table class="table">
       <thead>
         <tr>
-          <th style="width:42%;"><?= $headerLink('name', 'Nama') ?></th>
-          <th style="width:24%;"><?= $headerLink('modified', 'Terakhir Dimodifikasi') ?></th>
-          <th style="width:16%;"><?= $headerLink('size', 'Size') ?></th>
-          <th style="width:18%;">Aksi</th>
+           <th style="width:36%;"><?= $headerLink('name', 'Nama') ?></th>
+           <th style="width:20%;"><?= $headerLink('modified', 'Terakhir Dimodifikasi') ?></th>
+           <th style="width:12%;"><?= $headerLink('size', 'Size') ?></th>
+           <th style="width:32%;">Aksi</th>
         </tr>
       </thead>
       <tbody id="bsomTbody">
@@ -317,15 +334,15 @@ $entryUrl = function ($e) {
                 <span class="icon">📄</span> <?= $e['name'] ?>
               <?php endif; ?>
             </td>
-            <td class="muted" style="font-size:13px;color:#64748b;"><?= ($e['modified'] !== '' ? $e['modified'] : '-') ?></td>
-            <td class="muted" style="font-size:13px;color:#64748b;"><?= (!$e['isDir'] && $e['size'] !== '' ? $e['size'] : '-') ?></td>
-            <td>
-              <?php if ($e['isDir']): ?>
-                <a href="<?= $e['link'] ?>" class="btn btn-sm btn-primary">Buka</a>
-              <?php else: ?>
-                <a href="<?= $e['viewUrl'] ?>" class="btn btn-sm btn-primary">👁️ Lihat</a>
-              <?php endif; ?>
-            </td>
+             <td class="muted" style="font-size:13px;color:#64748b;"><?= ($e['modified'] !== '' ? $e['modified'] : '-') ?></td>
+             <td class="muted" style="font-size:13px;color:#64748b;"><?= (!$e['isDir'] && $e['size'] !== '' ? $e['size'] : '-') ?></td>
+             <td style="display:flex;gap:6px;flex-wrap:wrap;">
+               <?php if ($e['isDir']): ?>
+                 <a href="<?= $e['link'] ?>" class="btn btn-sm btn-primary">Buka</a>
+               <?php else: ?>
+                 <a href="<?= $e['viewUrl'] ?>" class="btn btn-sm btn-primary">Buka</a>
+               <?php endif; ?>
+             </td>
           </tr>
         <?php endforeach; ?>
       </tbody>

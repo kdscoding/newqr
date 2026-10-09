@@ -14,7 +14,7 @@ $v = $viewData;
   <?php else: ?>
     <div class="nav-actions" style="flex-wrap:wrap;gap:6px;margin-bottom:14px;">
       <span style="font-weight:600;"><?=$v['name']?></span>
-      <span class="text-muted-custom" style="font-size:12px;"><?=($v['size'] !== '' ? $v['size'] : '-')?> · <?=$v['mime']?></span>
+      <span class="text-muted-custom" style="font-size:12px;"><?=($v['size'] !== '' ? $v['size'] : '-')?> · <?=$v['mime']?><?=($v['modified'] !== '' ? ' · ' . htmlspecialchars($v['modified'], ENT_QUOTES, 'UTF-8') : '')?></span>
     </div>
 
     <div class="preview-area" style="border:1px solid var(--border);border-radius:10px;padding:14px;min-height:140px;overflow:auto;">
@@ -40,7 +40,7 @@ $v = $viewData;
       <?php elseif ($v['viewType'] === 'image'): ?>
         <img src="<?=$v['streamUrl']?>" style="max-width:100%;height:auto;border-radius:8px;" alt="<?=htmlspecialchars($v['name'], ENT_QUOTES, 'UTF-8')?>">
       <?php elseif ($v['viewType'] === 'pdf'): ?>
-        <iframe src="<?=$v['streamUrl']?>" type="application/pdf" style="width:100%;height:640px;border:none;border-radius:8px;"></iframe>
+        <iframe src="<?=$v['streamUrl']?>" type="application/pdf" style="width:100%;height:600px;border:none;border-radius:8px;"></iframe>
       <?php else: ?>
         <div class="alert">📄 Berkas bertipe ini tidak dapat dilihat langsung di perambalan. Unduh berkas di bawah jika diperlukan.</div>
       <?php endif; ?>
