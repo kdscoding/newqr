@@ -1,4 +1,5 @@
 <?php
+
 /**
  * BSOM - Unified shell: browse/search page (with inline previews) + per-file view page
  */
@@ -19,18 +20,45 @@ $iconFor = function ($type) {
     return $type === 'pdf' ? '📄' : ($type === 'image' ? '🖼️' : ($type === 'text' ? '📝' : '📄'));
 };
 
+$groupDirFor = function (array $files) {
+    $common = null;
+    foreach ($files as $f) {
+        $dir = dirname($f['rel']);
+        $dir = ($dir === '.' || $dir === '/' || $dir === '\\') ? '' : trim($dir, '/');
+        $parts = ($dir === '') ? [] : explode('/', $dir);
+        if ($common === null) {
+            $common = $parts;
+        } else {
+            $len = min(count($common), count($parts));
+            $merged = [];
+            for ($i = 0; $i < $len; $i++) {
+                if ($common[$i] !== $parts[$i]) break;
+                $merged[] = $common[$i];
+            }
+            $common = $merged;
+        }
+    }
+    return $common === null ? '' : implode('/', $common);
+};
+
 $streamUrlFor = function ($rel) {
     $enc = implode('/', array_map('rawurlencode', explode('/', $rel)));
     return BASE_URL . '/actions/bsom-stream.php?file=' . $enc;
 };
 
+$pdfFitUrlFor = function ($url) {
+    $url = (string)$url;
+    if ($url === '' || strpos($url, '#') !== false) return $url;
+    return $url . '#view=FitH&zoom=page-width';
+};
+
 // Inline preview markup for search results (lazy-loaded, empty when not previewable)
-$inlinePreview = function ($name, $rel) use ($previewType, $streamUrlFor) {
+$inlinePreview = function ($name, $rel) use ($previewType, $streamUrlFor, $pdfFitUrlFor) {
     $type = $previewType($name);
     $stream = $streamUrlFor($rel);
     $nameAttr = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
     if ($type === 'pdf') {
-        return '<div class="bsom-preview"><iframe src="' . htmlspecialchars($stream, ENT_QUOTES, 'UTF-8') . '" type="application/pdf" loading="lazy" title="' . $nameAttr . '"></iframe></div>';
+        return '<div class="bsom-preview"><iframe src="' . htmlspecialchars($pdfFitUrlFor($stream), ENT_QUOTES, 'UTF-8') . '" type="application/pdf" loading="lazy" title="' . $nameAttr . '"></iframe></div>';
     }
     if ($type === 'image') {
         return '<div class="bsom-preview"><img src="' . htmlspecialchars($stream, ENT_QUOTES, 'UTF-8') . '" alt="' . $nameAttr . '" loading="lazy"></div>';
@@ -417,6 +445,7 @@ if ($viewMode) {
     .bsom-group-header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 8px;
         padding: 10px 20px;
         background: #f8fafc;
@@ -427,10 +456,24 @@ if ($viewMode) {
         color: #334155;
     }
 
-    .bsom-group-header .count {
+    .bsom-group-header .bsom-meta {
+        margin-left: auto;
+        max-width: 65%;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: right;
         font-weight: 400;
         color: #94a3b8;
         font-size: 12px;
+    }
+
+    .bsom-group-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .bsom-group .bsom-card {
@@ -639,142 +682,211 @@ if ($viewMode) {
         </form>
     </div>
 
-<?php if ($viewMode): ?>
-    <!-- ============ FILE VIEW PAGE ============ -->
-    <?php if ($v['error'] !== null): ?>
-        <div class="bsom-error"><?= $v['error'] ?></div>
-    <?php else: ?>
-        <div class="bsom-stats">
-            <span>
-                <?= $v['size'] !== '' ? htmlspecialchars($v['size'], ENT_QUOTES, 'UTF-8') : '-' ?>
-                <?php if ($v['mime'] !== ''): ?> · <?= htmlspecialchars($v['mime'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
-                <?php if ($v['modified'] !== ''): ?> · <?= htmlspecialchars($v['modified'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
-            </span>
-        </div>
-        <div class="bsom-card">
-            <div class="bsom-view-preview">
-                <?php if ($v['viewType'] === 'text'): ?>
-                    <pre><?= htmlspecialchars($v['preview'], ENT_QUOTES, 'UTF-8') ?></pre>
-                <?php elseif ($v['viewType'] === 'csv'): ?>
-                    <table>
-                        <?php
-                        $rows = preg_split('/\r\n|\r|\n/', trim($v['preview']));
-                        $i = 0;
-                        foreach ($rows as $r) {
-                            if (trim($r) === '') continue;
-                            $cells = str_get_csv($r);
-                            echo '<tr>';
-                            foreach ($cells as $c) {
-                                echo ($i === 0 ? '<th>' : '<td>') . htmlspecialchars($c, ENT_QUOTES, 'UTF-8') . ($i === 0 ? '</th>' : '</td>');
+    <?php if ($viewMode): ?>
+        <!-- ============ FILE VIEW PAGE ============ -->
+        <?php if ($v['error'] !== null): ?>
+            <div class="bsom-error"><?= $v['error'] ?></div>
+        <?php else: ?>
+            <div class="bsom-stats">
+                <span>
+                    <?= $v['size'] !== '' ? htmlspecialchars($v['size'], ENT_QUOTES, 'UTF-8') : '-' ?>
+                    <?php if ($v['mime'] !== ''): ?> · <?= htmlspecialchars($v['mime'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
+                        <?php if ($v['modified'] !== ''): ?> · <?= htmlspecialchars($v['modified'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
+                </span>
+            </div>
+            <div class="bsom-card">
+                <div class="bsom-view-preview">
+                    <?php if ($v['viewType'] === 'text'): ?>
+                        <pre><?= htmlspecialchars($v['preview'], ENT_QUOTES, 'UTF-8') ?></pre>
+                    <?php elseif ($v['viewType'] === 'csv'): ?>
+                        <table>
+                            <?php
+                            $rows = preg_split('/\r\n|\r|\n/', trim($v['preview']));
+                            $i = 0;
+                            foreach ($rows as $r) {
+                                if (trim($r) === '') continue;
+                                $cells = str_get_csv($r);
+                                echo '<tr>';
+                                foreach ($cells as $c) {
+                                    echo ($i === 0 ? '<th>' : '<td>') . htmlspecialchars($c, ENT_QUOTES, 'UTF-8') . ($i === 0 ? '</th>' : '</td>');
+                                }
+                                echo '</tr>';
+                                $i++;
                             }
-                            echo '</tr>';
-                            $i++;
-                        }
-                        ?>
-                    </table>
-                <?php elseif ($v['viewType'] === 'image'): ?>
-                    <img src="<?= $v['streamUrl'] ?>" alt="<?= htmlspecialchars($v['name'], ENT_QUOTES, 'UTF-8') ?>">
-                <?php elseif ($v['viewType'] === 'pdf'): ?>
-                    <iframe src="<?= $v['streamUrl'] ?>" type="application/pdf"></iframe>
-                <?php else: ?>
-                    <div class="bsom-view-fallback">Berkas ini tidak dapat ditampilkan langsung di browser. Silakan unduh untuk membukanya.</div>
-                <?php endif; ?>
-            </div>
-            <div class="bsom-view-actions">
-                <?php if (!empty($v['downloadUrl'])): ?>
-                    <a href="<?= $v['downloadUrl'] ?>" class="btn-modern btn-modern-success">⬇ Unduh Berkas</a>
-                <?php endif; ?>
-                <a href="<?= htmlspecialchars($backUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn-modern btn-modern-ghost"><?= $backLabel ?></a>
-            </div>
-        </div>
-    <?php endif; ?>
-
-<?php else: ?>
-    <!-- ============ BROWSE / SEARCH PAGE ============ -->
-
-    <!-- Stats -->
-    <?php if (($query ?? '') !== '' && $searchTotal > 0 && !empty($searchStats)): ?>
-        <div class="bsom-stats">
-            <span>
-                <strong><?= $searchTotal ?></strong> hasil untuk "<strong><?= htmlspecialchars($query, ENT_QUOTES, 'UTF-8') ?></strong>"
-                <?php if (!empty($searchStats['partial'])): ?>
-                    <span class="warning">· <?= htmlspecialchars($searchError ?? 'hasil parsial', ENT_QUOTES, 'UTF-8') ?></span>
-                <?php endif; ?>
-            </span>
-            <span class="bsom-stats-loc"><?= $path === '' ? 'seluruh bsom' : htmlspecialchars($path, ENT_QUOTES, 'UTF-8') ?></span>
-        </div>
-    <?php endif; ?>
-
-    <!-- Error -->
-    <?php if ($error !== null): ?>
-        <div class="bsom-error"><?= $error ?></div>
-    <?php endif; ?>
-
-    <!-- Content -->
-    <?php if (($query ?? '') !== '' && $searchTotal === 0 && $error === null): ?>
-        <div class="bsom-card">
-            <div class="bsom-empty">Tidak ada hasil yang cocok. Coba kata kunci lain.</div>
-        </div>
-
-    <?php elseif (($query ?? '') !== '' && $searchTotal > 0): ?>
-        <?php if ($autoGrouped && !empty($groupedResults)): ?>
-            <!-- Grouped Search Results (with inline preview) -->
-            <?php foreach ($groupedResults as $season => $files): ?>
-                <div class="bsom-group">
-                    <div class="bsom-group-header">
-                        <?= htmlspecialchars($season, ENT_QUOTES, 'UTF-8') ?>
-                        <span class="count"><?= count($files) ?> file</span>
-                    </div>
-                    <div class="bsom-card">
-                        <?php foreach ($files as $f):
-                            $type = $previewType($f['name']);
-                            $encRel = implode('/', array_map('rawurlencode', explode('/', $f['rel'])));
-                            $viewUrl = BASE_URL . '/bsom/view?file=' . $encRel;
-                            $downloadUrl = BASE_URL . '/actions/bsom-download.php?file=' . $encRel;
-                        ?>
-                            <div class="bsom-file-block">
-                                <div class="bsom-file-block-head">
-                                    <span class="bsom-icon"><?= $iconFor($type) ?></span>
-                                    <div class="bsom-file-info">
-                                        <div class="bsom-file-name"><?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <div class="bsom-meta"><?= htmlspecialchars($f['rel'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <?php if ($f['modified'] !== ''): ?>
-                                            <div class="bsom-meta"><?= htmlspecialchars($f['modified'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <?php endif; ?>
-                                    </div>
-                                    <?= $fileActions($viewUrl, $downloadUrl) ?>
-                                </div>
-                                <?= $inlinePreview($f['name'], $f['rel']) ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
+                            ?>
+                        </table>
+                    <?php elseif ($v['viewType'] === 'image'): ?>
+                        <img src="<?= $v['streamUrl'] ?>" alt="<?= htmlspecialchars($v['name'], ENT_QUOTES, 'UTF-8') ?>">
+                    <?php elseif ($v['viewType'] === 'pdf'): ?>
+                        <iframe src="<?= htmlspecialchars($pdfFitUrlFor($v['streamUrl']), ENT_QUOTES, 'UTF-8') ?>" type="application/pdf"></iframe>
+                    <?php else: ?>
+                        <div class="bsom-view-fallback">Berkas ini tidak dapat ditampilkan langsung di browser. Silakan unduh untuk membukanya.</div>
+                    <?php endif; ?>
                 </div>
-            <?php endforeach; ?>
+                <div class="bsom-view-actions">
+                    <?php if (!empty($v['downloadUrl'])): ?>
+                        <a href="<?= $v['downloadUrl'] ?>" class="btn-modern btn-modern-success">⬇ Unduh Berkas</a>
+                    <?php endif; ?>
+                    <a href="<?= htmlspecialchars($backUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn-modern btn-modern-ghost"><?= $backLabel ?></a>
+                </div>
+            </div>
+        <?php endif; ?>
+
+    <?php else: ?>
+        <!-- ============ BROWSE / SEARCH PAGE ============ -->
+
+        <!-- Stats -->
+        <?php if (($query ?? '') !== '' && $searchTotal > 0 && !empty($searchStats)): ?>
+            <div class="bsom-stats">
+                <span>
+                    <strong><?= $searchTotal ?></strong> hasil untuk "<strong><?= htmlspecialchars($query, ENT_QUOTES, 'UTF-8') ?></strong>"
+                    <?php if (!empty($searchStats['partial'])): ?>
+                        <span class="warning">· <?= htmlspecialchars($searchError ?? 'hasil parsial', ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php endif; ?>
+                </span>
+            </div>
+        <?php endif; ?>
+
+        <!-- Error -->
+        <?php if ($error !== null): ?>
+            <div class="bsom-error"><?= $error ?></div>
+        <?php endif; ?>
+
+        <!-- Content -->
+        <?php if (($query ?? '') !== '' && $searchTotal === 0 && $error === null): ?>
+            <div class="bsom-card">
+                <div class="bsom-empty">Tidak ada hasil yang cocok. Coba kata kunci lain.</div>
+            </div>
+
+        <?php elseif (($query ?? '') !== '' && $searchTotal > 0): ?>
+            <?php if ($autoGrouped && !empty($groupedResults)): ?>
+                <!-- Grouped Search Results (with inline preview) -->
+                <?php foreach ($groupedResults as $season => $files): ?>
+                    <?php
+                    $groupDir = $groupDirFor($files);
+                    $groupMeta = count($files) . ' file';
+                    if ($groupDir !== '' && $groupDir !== $season) {
+                        $groupMeta = $groupDir . ' · ' . $groupMeta;
+                    }
+                    ?>
+                    <div class="bsom-group">
+                        <div class="bsom-group-header">
+                            <span class="bsom-group-title"><?= htmlspecialchars($season, ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="bsom-meta" title="<?= htmlspecialchars($groupDir !== '' ? $groupDir : $season, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groupMeta, ENT_QUOTES, 'UTF-8') ?></span>
+                        </div>
+                        <div class="bsom-card">
+                            <?php foreach ($files as $f):
+                                $type = $previewType($f['name']);
+                                $encRel = implode('/', array_map('rawurlencode', explode('/', $f['rel'])));
+                                $viewUrl = BASE_URL . '/bsom/view?file=' . $encRel;
+                                $downloadUrl = BASE_URL . '/actions/bsom-download.php?file=' . $encRel;
+                                $relSub = ltrim(substr($f['rel'], strlen($groupDir)), '/');
+                                $relSubDir = dirname($relSub);
+                                $relSubDir = ($relSubDir === '.' || $relSubDir === '/' || $relSubDir === '\\') ? '' : trim($relSubDir, '/');
+                                $metaParts = [];
+                                if ($relSubDir !== '') $metaParts[] = $relSubDir;
+                                if ($f['modified'] !== '') $metaParts[] = $f['modified'];
+                            ?>
+                                <div class="bsom-file-block">
+                                    <div class="bsom-file-block-head">
+                                        <span class="bsom-icon"><?= $iconFor($type) ?></span>
+                                        <div class="bsom-file-info">
+                                            <div class="bsom-file-name"><?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?></div>
+                                            <?php if ($metaParts !== []): ?>
+                                                <div class="bsom-meta"><?= htmlspecialchars(implode(' · ', $metaParts), ENT_QUOTES, 'UTF-8') ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?= $fileActions($viewUrl, $downloadUrl) ?>
+                                    </div>
+                                    <?= $inlinePreview($f['name'], $f['rel']) ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+
+            <?php else: ?>
+                <!-- Search Results Table (with inline preview rows) -->
+                <div class="bsom-card">
+                    <table class="bsom-table">
+                        <thead>
+                            <tr>
+                                <th>Nama</th>
+                                <th>Update</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bsomTbody">
+                            <?php foreach ($searchResults as $e): ?>
+                                <tr class="bsom-row" data-name="<?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <td>
+                                        <div class="bsom-file-cell">
+                                            <span class="bsom-icon"><?= ($e['isDir'] ? '📁' : '📄') ?></span>
+                                            <div class="bsom-file-info">
+                                                <div class="bsom-file-name"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                <div class="bsom-meta bsom-loc"><?= $e['rel'] !== '' ? htmlspecialchars($e['rel'], ENT_QUOTES, 'UTF-8') : '—' ?></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="bsom-meta"><?= $e['modified'] !== '' ? htmlspecialchars($e['modified'], ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                                    <td>
+                                        <?php if ($e['isDir']): ?>
+                                            <div class="bsom-actions">
+                                                <a href="<?= $e['link'] ?>" class="btn-modern btn-modern-primary btn-modern-sm">Buka</a>
+                                            </div>
+                                        <?php else: ?>
+                                            <?= $fileActions($e['viewUrl'], $e['downloadUrl']) ?>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php if (!$e['isDir']):
+                                    $pv = $inlinePreview($e['name'], $e['rel']);
+                                    if ($pv !== ''):
+                                ?>
+                                        <tr class="bsom-preview-row">
+                                            <td colspan="3"><?= $pv ?></td>
+                                        </tr>
+                                <?php
+                                    endif;
+                                endif; ?>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+
+        <?php elseif (empty($entries)): ?>
+            <div class="bsom-card">
+                <div class="bsom-empty">Tidak ada berkas atau folder ditemukan.</div>
+            </div>
 
         <?php else: ?>
-            <!-- Search Results Table (with inline preview rows) -->
+            <!-- Directory Listing -->
             <div class="bsom-card">
                 <table class="bsom-table">
                     <thead>
                         <tr>
-                            <th>Nama</th>
-                            <th>Update</th>
+                            <th><?= $headerLink('name', 'Nama') ?></th>
+                            <th><?= $headerLink('modified', 'Dimodifikasi') ?></th>
+                            <th><?= $headerLink('size', 'Ukuran') ?></th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody id="bsomTbody">
-                        <?php foreach ($searchResults as $e): ?>
+                        <?php foreach ($entries as $e): ?>
                             <tr class="bsom-row" data-name="<?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?>">
                                 <td>
                                     <div class="bsom-file-cell">
                                         <span class="bsom-icon"><?= ($e['isDir'] ? '📁' : '📄') ?></span>
-                                        <div class="bsom-file-info">
-                                            <div class="bsom-file-name"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></div>
-                                            <div class="bsom-meta bsom-loc"><?= $e['rel'] !== '' ? htmlspecialchars($e['rel'], ENT_QUOTES, 'UTF-8') : '—' ?></div>
-                                        </div>
+                                        <?php if ($e['isDir']): ?>
+                                            <a href="<?= $e['link'] ?>" class="bsom-name-link"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></a>
+                                        <?php else: ?>
+                                            <span class="bsom-file-name"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
-                                <td class="bsom-meta"><?= $e['modified'] !== '' ? htmlspecialchars($e['modified'], ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                                <td class="bsom-meta"><?= ($e['modified'] !== '' ? $e['modified'] : '-') ?></td>
+                                <td class="bsom-meta"><?= (!$e['isDir'] && $e['size'] !== '' ? $e['size'] : '-') ?></td>
                                 <td>
                                     <?php if ($e['isDir']): ?>
                                         <div class="bsom-actions">
@@ -785,110 +897,56 @@ if ($viewMode) {
                                     <?php endif; ?>
                                 </td>
                             </tr>
-                            <?php if (!$e['isDir']):
-                                $pv = $inlinePreview($e['name'], $e['rel']);
-                                if ($pv !== ''):
-                            ?>
-                                <tr class="bsom-preview-row"><td colspan="3"><?= $pv ?></td></tr>
-                            <?php
-                                endif;
-                            endif; ?>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
         <?php endif; ?>
-
-    <?php elseif (empty($entries)): ?>
-        <div class="bsom-card">
-            <div class="bsom-empty">Tidak ada berkas atau folder ditemukan.</div>
-        </div>
-
-    <?php else: ?>
-        <!-- Directory Listing -->
-        <div class="bsom-card">
-            <table class="bsom-table">
-                <thead>
-                    <tr>
-                        <th><?= $headerLink('name', 'Nama') ?></th>
-                        <th><?= $headerLink('modified', 'Dimodifikasi') ?></th>
-                        <th><?= $headerLink('size', 'Ukuran') ?></th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody id="bsomTbody">
-                    <?php foreach ($entries as $e): ?>
-                        <tr class="bsom-row" data-name="<?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?>">
-                            <td>
-                                <div class="bsom-file-cell">
-                                    <span class="bsom-icon"><?= ($e['isDir'] ? '📁' : '📄') ?></span>
-                                    <?php if ($e['isDir']): ?>
-                                        <a href="<?= $e['link'] ?>" class="bsom-name-link"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></a>
-                                    <?php else: ?>
-                                        <span class="bsom-file-name"><?= htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8') ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td class="bsom-meta"><?= ($e['modified'] !== '' ? $e['modified'] : '-') ?></td>
-                            <td class="bsom-meta"><?= (!$e['isDir'] && $e['size'] !== '' ? $e['size'] : '-') ?></td>
-                            <td>
-                                <?php if ($e['isDir']): ?>
-                                    <div class="bsom-actions">
-                                        <a href="<?= $e['link'] ?>" class="btn-modern btn-modern-primary btn-modern-sm">Buka</a>
-                                    </div>
-                                <?php else: ?>
-                                    <?= $fileActions($e['viewUrl'], $e['downloadUrl']) ?>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
     <?php endif; ?>
-<?php endif; ?>
 </div>
 
 <script>
-(function() {
-    // Load text previews (fetch after page render so the list appears instantly)
-    document.querySelectorAll('pre[data-src]').forEach(function(pre) {
-        var src = pre.getAttribute('data-src');
-        if (!src) return;
-        fetch(src).then(function(r) { return r.text(); }).then(function(t) {
-            pre.textContent = t || '(berkas kosong)';
-        }).catch(function() {
-            pre.textContent = 'Gagal memuat pratinjau.';
-        });
-    });
-
-    // Client-side row filter (refines current table only, keeps preview rows in sync)
-    var search = document.getElementById('bsomSearch');
-    var tbody = document.getElementById('bsomTbody');
-    if (search && tbody) {
-        search.addEventListener('input', function() {
-            var q = (search.value || '').toLowerCase().trim();
-            var rows = tbody.querySelectorAll('tr.bsom-row');
-
-            if (q === '') {
-                rows.forEach(function(tr) {
-                    tr.style.display = '';
-                    var pv = tr.nextElementSibling;
-                    if (pv && pv.classList.contains('bsom-preview-row')) pv.style.display = '';
-                });
-                return;
-            }
-
-            rows.forEach(function(tr) {
-                var name = (tr.getAttribute('data-name') || '').toLowerCase();
-                var locEl = tr.querySelector('.bsom-loc');
-                var loc = locEl ? locEl.textContent.toLowerCase() : '';
-                var visible = (name.indexOf(q) !== -1 || loc.indexOf(q) !== -1);
-                tr.style.display = visible ? '' : 'none';
-                var pv = tr.nextElementSibling;
-                if (pv && pv.classList.contains('bsom-preview-row')) pv.style.display = visible ? '' : 'none';
+    (function() {
+        // Load text previews (fetch after page render so the list appears instantly)
+        document.querySelectorAll('pre[data-src]').forEach(function(pre) {
+            var src = pre.getAttribute('data-src');
+            if (!src) return;
+            fetch(src).then(function(r) {
+                return r.text();
+            }).then(function(t) {
+                pre.textContent = t || '(berkas kosong)';
+            }).catch(function() {
+                pre.textContent = 'Gagal memuat pratinjau.';
             });
         });
-    }
-})();
+
+        // Client-side row filter (refines current table only, keeps preview rows in sync)
+        var search = document.getElementById('bsomSearch');
+        var tbody = document.getElementById('bsomTbody');
+        if (search && tbody) {
+            search.addEventListener('input', function() {
+                var q = (search.value || '').toLowerCase().trim();
+                var rows = tbody.querySelectorAll('tr.bsom-row');
+
+                if (q === '') {
+                    rows.forEach(function(tr) {
+                        tr.style.display = '';
+                        var pv = tr.nextElementSibling;
+                        if (pv && pv.classList.contains('bsom-preview-row')) pv.style.display = '';
+                    });
+                    return;
+                }
+
+                rows.forEach(function(tr) {
+                    var name = (tr.getAttribute('data-name') || '').toLowerCase();
+                    var locEl = tr.querySelector('.bsom-loc');
+                    var loc = locEl ? locEl.textContent.toLowerCase() : '';
+                    var visible = (name.indexOf(q) !== -1 || loc.indexOf(q) !== -1);
+                    tr.style.display = visible ? '' : 'none';
+                    var pv = tr.nextElementSibling;
+                    if (pv && pv.classList.contains('bsom-preview-row')) pv.style.display = visible ? '' : 'none';
+                });
+            });
+        }
+    })();
 </script>
