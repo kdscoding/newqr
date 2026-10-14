@@ -30,6 +30,11 @@ function formatDateDisplay($val)
     return Config::formatDateDisplay($val);
 }
 
+function decodeBsomLegacyPath(string $value): string
+{
+    return str_replace(['&#38;', '&amp;'], '&', $value);
+}
+
 function dedupeRows(array $rows): array
 {
     $seen = [];

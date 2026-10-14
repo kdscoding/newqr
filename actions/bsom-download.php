@@ -7,6 +7,7 @@ if (session_status() === PHP_SESSION_NONE) {
 AuthService::check();
 
 $raw = isset($_GET['file']) ? (string)$_GET['file'] : '';
+$raw = decodeBsomLegacyPath($raw);
 $raw = trim($raw);
 if ($raw === '') {
     http_response_code(400);
@@ -14,7 +15,7 @@ if ($raw === '') {
 }
 
 $segs = [];
-foreach (explode('/', urldecode($raw)) as $seg) {
+foreach (explode('/', $raw) as $seg) {
     if ($seg === '' || $seg === '.') {
         continue;
     }
@@ -55,7 +56,7 @@ if ($err || $code !== 200 || $data === false) {
     exit('Gagal mengunduh file dari server bsom.');
 }
 
-$basename = basename(urldecode(end($segs)));
+$basename = basename(end($segs));
 if ($basename === '') {
     $basename = 'download';
 }

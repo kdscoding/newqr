@@ -2,6 +2,7 @@
 class BsomPresenter
 {
     private const BSOM_SOURCE = 'http://10.10.10.98/bsom/';
+    private static $fullIndexGeneratedAt = null;
 
     public static function render($db)
     {
@@ -10,11 +11,74 @@ class BsomPresenter
         }
 
         $rawPath = isset($_GET['path']) ? (string)$_GET['path'] : '';
+        $rawPath = self::decodeInputPath($rawPath);
         $path = self::normalizePath($rawPath);
         $path = rtrim($path, '/');
 
         $query = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
         $query = mb_substr($query, 0, 200);
+
+        $rebuildMessage = null;
+        if (isset($_GET['rebuild_index'])) {
+            $rebuildPaths = [];
+            $rawRebuildPaths = $_GET['rebuild_paths'] ?? null;
+
+            if (is_array($rawRebuildPaths)) {
+                foreach ($rawRebuildPaths as $rawRebuildItem) {
+                    if (!is_scalar($rawRebuildItem)) {
+                        continue;
+                    }
+                    $normalizedPath = rtrim(self::normalizePath((string)$rawRebuildItem), '/');
+                    if (strpos($normalizedPath, '..') === false && !in_array($normalizedPath, $rebuildPaths, true)) {
+                        $rebuildPaths[] = $normalizedPath;
+                    }
+                }
+            } elseif (isset($_GET['rebuild_path'])) {
+                $normalizedPath = rtrim(self::normalizePath((string)$_GET['rebuild_path']), '/');
+                if (strpos($normalizedPath, '..') === false) {
+                    $rebuildPaths[] = $normalizedPath;
+                }
+            } else {
+                $rebuildPaths[] = $path;
+            }
+
+            if ($rebuildPaths === []) {
+                $rebuildMessage = 'Pilih minimal satu folder untuk rebuild index.';
+            } else {
+                if (count($rebuildPaths) > self::INDEX_REBUILD_MAX_BATCH) {
+                    $rebuildPaths = array_slice($rebuildPaths, 0, self::INDEX_REBUILD_MAX_BATCH);
+                    $rebuildMessage = 'Dibatasi ' . self::INDEX_REBUILD_MAX_BATCH . ' folder per rebuild.';
+                }
+
+                $successCount = 0;
+                $failedCount = 0;
+                $newEntryCount = 0;
+                $requestCount = 0;
+                $totalEntries = 0;
+                $errors = [];
+
+                foreach ($rebuildPaths as $rebuildPath) {
+                    $rebuildResult = self::rebuildIndexScope($rebuildPath);
+                    if (!empty($rebuildResult['ok'])) {
+                        $successCount++;
+                        $newEntryCount += (int)($rebuildResult['newEntries'] ?? 0);
+                        $requestCount += (int)($rebuildResult['stats']['requests'] ?? 0);
+                        $totalEntries = (int)($rebuildResult['totalEntries'] ?? 0);
+                    } else {
+                        $failedCount++;
+                        $errors[] = ($rebuildPath !== '' ? $rebuildPath : 'root') . ': ' . (string)$rebuildResult['message'];
+                    }
+                }
+
+                $rebuildMessage = 'Rebuild selesai: ' . $successCount . ' berhasil, ' . $failedCount .
+                    ' gagal, ' . $newEntryCount . ' entry baru, total index ' . $totalEntries .
+                    ', ' . $requestCount . ' request.';
+
+                if ($errors !== []) {
+                    $rebuildMessage .= ' Gagal: ' . implode('; ', $errors);
+                }
+            }
+        }
 
         $sortCol = isset($_GET['sort']) ? (string)$_GET['sort'] : 'name';
         $sortDir = isset($_GET['dir']) ? (string)$_GET['dir'] : 'asc';
@@ -83,6 +147,7 @@ class BsomPresenter
         }
 
         $rawFile = isset($_GET['file']) ? (string)$_GET['file'] : '';
+        $rawFile = self::decodeInputPath($rawFile);
         $file = self::normalizePath($rawFile);
         $file = ltrim($file, '/');
 
@@ -115,7 +180,7 @@ class BsomPresenter
             if ($data === false) {
                 $viewData['error'] = 'Gagal mengambil berkas dari server bsom.';
             } else {
-                $viewData['name'] = basename(urldecode($file));
+                $viewData['name'] = basename($file);
                 $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
                 $typeInfo = self::typeInfo($ext, $viewData['mime']);
                 $viewData['mime'] = $typeInfo['mime'];
@@ -278,6 +343,56 @@ class BsomPresenter
         return implode('/', $segs);
     }
 
+    private static function decodeHref(string $href): string
+    {
+        $href = html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return rawurldecode($href);
+    }
+
+    private static function decodeInputPath(string $value): string
+    {
+        if (function_exists('decodeBsomLegacyPath')) {
+            return decodeBsomLegacyPath($value);
+        }
+        return str_replace(['&#38;', '&amp;'], '&', $value);
+    }
+
+    private static function normalizeIndexEntry(array $e): array
+    {
+        $originalRel = $e['rel'] ?? null;
+        if (isset($e['rel']) && is_string($e['rel'])) {
+            $e['rel'] = self::decodeInputPath($e['rel']);
+        }
+        if (isset($e['name']) && is_string($e['name'])) {
+            $e['name'] = self::decodeInputPath($e['name']);
+            if (!empty($e['isDir']) && $e['name'] !== '' && substr($e['name'], -1) !== '/') {
+                $e['name'] .= '/';
+            }
+        }
+
+        $relChanged = isset($e['rel']) && is_string($e['rel']) && $e['rel'] !== $originalRel;
+        if (!$relChanged) {
+            return $e;
+        }
+
+        $encoded = self::encodeRel($e['rel']);
+        if (!empty($e['isDir'])) {
+            $link = BASE_URL . '/bsom';
+            if ($encoded !== '') {
+                $link .= '?path=' . $encoded;
+            }
+            $e['link'] = $link;
+            $e['viewUrl'] = $link;
+            $e['downloadUrl'] = null;
+        } else {
+            $e['link'] = '';
+            $e['viewUrl'] = BASE_URL . '/bsom/view?file=' . $encoded;
+            $e['downloadUrl'] = BASE_URL . '/actions/bsom-download.php?file=' . $encoded;
+        }
+
+        return $e;
+    }
+
     private static function cleanText($s): string
     {
         return trim(html_entity_decode((string)$s, ENT_QUOTES, 'UTF-8'));
@@ -305,8 +420,8 @@ class BsomPresenter
             $isParent = stripos($alt, 'PARENTDIR') !== false;
 
             if (preg_match('#^https?://#i', $href) || str_starts_with($href, '/')) {
-                $decoded = urldecode($href);
-                $decoded = str_starts_with($href, '/') ? $decoded : urldecode(parse_url($href, PHP_URL_PATH));
+                $decoded = self::decodeHref($href);
+                $decoded = str_starts_with($href, '/') ? $decoded : self::decodeHref((string)parse_url($href, PHP_URL_PATH));
                 $decoded = self::normalizePath($decoded);
                 if ($decoded === '/' || $decoded === '') {
                     continue;
@@ -318,7 +433,7 @@ class BsomPresenter
                 array_shift($seg);
                 $within = implode('/', $seg);
             } else {
-                $target = ($path === '') ? urldecode($href) : $path . '/' . urldecode($href);
+                $target = ($path === '') ? self::decodeHref($href) : $path . '/' . self::decodeHref($href);
                 $within = self::normalizePath($target);
             }
 
@@ -333,7 +448,7 @@ class BsomPresenter
                 $name = 'Parent Directory';
             } else {
                 $segs = explode('/', $within);
-                $name = urldecode(self::encodeRel(end($segs)));
+                $name = end($segs);
             }
             if ($isDir && substr($name, -1) !== '/') {
                 $name .= '/';
@@ -400,10 +515,15 @@ class BsomPresenter
         return 0;
     }
 
-    private const SEARCH_PARALLEL = 8;
+    private const SEARCH_PARALLEL = 16;
+    private const SEARCH_CACHE_TTL = 300;
     private const SEARCH_MAX_DEPTH = 5;
-    private const SEARCH_MAX_REQUESTS = 300;
+    private const SEARCH_MAX_REQUESTS = 2000;
+    private const SEARCH_INDEX_STALE_AFTER = 86400;
     private const SEARCH_MAX_RESULTS = 200;
+    private const INDEX_REBUILD_MAX_REQUESTS = 2000;
+    private const INDEX_REBUILD_MAX_DEPTH = 5;
+    private const INDEX_REBUILD_MAX_BATCH = 20;
 
     private static function fullIndexFile(): string
     {
@@ -414,13 +534,98 @@ class BsomPresenter
     {
         $file = self::fullIndexFile();
         if (!is_file($file)) {
+            self::$fullIndexGeneratedAt = null;
             return null;
         }
         $data = json_decode((string)file_get_contents($file), true);
         if (!is_array($data) || !isset($data['entries']) || !is_array($data['entries'])) {
+            self::$fullIndexGeneratedAt = null;
             return null;
         }
-        return $data['entries'];
+        self::$fullIndexGeneratedAt = isset($data['generated']) && is_numeric($data['generated'])
+            ? (int)$data['generated']
+            : filemtime($file);
+
+        $entries = [];
+        foreach ($data['entries'] as $entry) {
+            if (is_array($entry)) {
+                $entries[] = self::normalizeIndexEntry($entry);
+            }
+        }
+        return $entries;
+    }
+
+    private static function fullIndexStale(): bool
+    {
+        if (self::$fullIndexGeneratedAt === null) {
+            return true;
+        }
+        return (time() - self::$fullIndexGeneratedAt) > self::SEARCH_INDEX_STALE_AFTER;
+    }
+
+    private static function searchCacheFile(): string
+    {
+        return sys_get_temp_dir() . '/bsom_search_cache.json';
+    }
+
+    private static function readSearchCache(string $query, string $basePath): ?array
+    {
+        $file = self::searchCacheFile();
+        if (!is_file($file)) {
+            return null;
+        }
+
+        $data = json_decode((string)file_get_contents($file), true);
+        if (!is_array($data) || !isset($data['generated']) || !is_numeric($data['generated'])) {
+            return null;
+        }
+        if ((time() - (int)$data['generated']) > self::SEARCH_CACHE_TTL) {
+            return null;
+        }
+
+        $hit = $data['queries'][$basePath][$query] ?? null;
+        if (!is_array($hit) || !isset($hit['results']) || !is_array($hit['results'])) {
+            return null;
+        }
+
+        return [
+            'results' => $hit['results'],
+            'stats' => [
+                'requests' => 0,
+                'folders' => 0,
+                'maxDepth' => 0,
+                'partial' => false,
+                'fromSearchCache' => true,
+            ],
+        ];
+    }
+
+    private static function writeSearchCache(string $query, string $basePath, array $results): void
+    {
+        $file = self::searchCacheFile();
+        $cache = [];
+
+        if (is_file($file)) {
+            $existing = json_decode((string)file_get_contents($file), true);
+            if (is_array($existing)) {
+                $cache = $existing;
+            }
+        }
+
+        if (!isset($cache['generated']) || !is_numeric($cache['generated']) ||
+            (time() - (int)$cache['generated']) > self::SEARCH_CACHE_TTL) {
+            $cache = ['generated' => time(), 'queries' => []];
+        }
+
+        $cache['generated'] = time();
+        $cache['queries'][$basePath][$query] = ['results' => $results];
+
+        $tmp = $file . '.' . getmypid() . '.tmp';
+        if (@file_put_contents($tmp, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false) {
+            @rename($tmp, $file);
+        } else {
+            @unlink($tmp);
+        }
     }
 
     private static function searchBsom(string $query, string $basePath): array
@@ -429,11 +634,55 @@ class BsomPresenter
         if ($basePath === '') {
             $fullIndex = self::loadFullIndex();
             if ($fullIndex !== null) {
-                return self::searchInIndex($query, $fullIndex);
+                $res = self::searchInIndex($query, $fullIndex);
+                if (!empty($res['results'])) {
+                    return $res;
+                }
+                if (!self::fullIndexStale()) {
+                    return $res;
+                }
+                // Continue with live crawl only when the cached index is stale, so
+                // files/folders added after the cached index can still be discovered.
             }
         }
 
         // Fallback: live crawl from basePath
+        $cached = self::readSearchCache($query, $basePath);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $crawl = self::crawlDirectoryTree(
+            $basePath,
+            function ($e) use ($query) {
+                return stripos((string)($e['name'] ?? ''), $query) !== false ||
+                    stripos((string)($e['rel'] ?? ''), $query) !== false;
+            },
+            self::SEARCH_MAX_RESULTS,
+            self::SEARCH_MAX_DEPTH,
+            self::SEARCH_MAX_REQUESTS
+        );
+
+        $results = $crawl['results'];
+        $stats = $crawl['stats'];
+
+        if (!$stats['partial']) {
+            self::writeSearchCache($query, $basePath, $results);
+        }
+
+        return ['results' => $results, 'stats' => $stats];
+    }
+
+    private static function crawlDirectoryTree(
+        string $basePath,
+        ?callable $matcher = null,
+        int $maxResults = 0,
+        int $maxDepth = 0,
+        int $maxRequests = 0
+    ): array {
+        $maxDepth = $maxDepth > 0 ? $maxDepth : self::SEARCH_MAX_DEPTH;
+        $maxRequests = $maxRequests > 0 ? $maxRequests : self::SEARCH_MAX_REQUESTS;
+
         $results = [];
         $visited = [];
         $queue = [['rel' => $basePath, 'depth' => 0]];
@@ -489,13 +738,13 @@ class BsomPresenter
                 $dispatch($it['rel'], $it['depth']);
             }
 
-            if (count($results) >= self::SEARCH_MAX_RESULTS ||
-                $stats['requests'] >= self::SEARCH_MAX_REQUESTS ||
+            $limitReached = $maxResults > 0 && count($results) >= $maxResults;
+            if ($limitReached ||
+                $stats['requests'] >= $maxRequests ||
                 microtime(true) >= $deadline) {
                 $stats['partial'] = count($queue) > 0 || count($tasks) > 0 ||
-                    (count($results) < self::SEARCH_MAX_RESULTS &&
-                     ($stats['requests'] >= self::SEARCH_MAX_REQUESTS ||
-                      microtime(true) >= $deadline));
+                    (!$limitReached && count($results) < $maxResults &&
+                     ($stats['requests'] >= $maxRequests || microtime(true) >= $deadline));
                 $stop = true;
             }
 
@@ -536,20 +785,18 @@ class BsomPresenter
                     if ($e['isParent']) {
                         continue;
                     }
-                    if (!$e['isDir']) {
-                        if (stripos($e['name'], $query) !== false || stripos($e['rel'], $query) !== false) {
-                            $results[$e['rel'] . '#' . $e['name']] = $e;
-                            if (count($results) >= self::SEARCH_MAX_RESULTS) {
-                                $stats['partial'] = true;
-                            }
+                    if ($matcher === null || $matcher($e)) {
+                        $results[$e['rel'] . '#' . $e['name']] = $e;
+                        if ($maxResults > 0 && count($results) >= $maxResults) {
+                            $stats['partial'] = true;
                         }
                     }
-                    if ($e['isDir'] && $task['depth'] < self::SEARCH_MAX_DEPTH && !isset($visited[$e['rel']])) {
+                    if ($e['isDir'] && $task['depth'] < $maxDepth && !isset($visited[$e['rel']])) {
                         $queue[] = ['rel' => $e['rel'], 'depth' => $task['depth'] + 1];
                     }
                 }
             }
-        } while ($active && !$stop);
+        } while (($active || $queue !== [] || $tasks !== []) && !$stop);
 
         foreach ($tasks as $t) {
             curl_multi_remove_handle($mh, $t['ch']);
@@ -568,6 +815,86 @@ class BsomPresenter
         });
 
         return ['results' => $results, 'stats' => $stats];
+    }
+
+    private static function rebuildLockFile(): string
+    {
+        return sys_get_temp_dir() . '/bsom_rebuild.lock';
+    }
+
+    private static function rebuildIndexScope(string $path): array
+    {
+        $path = rtrim(self::normalizePath($path), '/');
+        if (strpos($path, '..') !== false) {
+            return ['ok' => false, 'message' => 'Folder tidak valid.', 'stats' => null];
+        }
+
+        $lock = fopen(self::rebuildLockFile(), 'c');
+        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+            return ['ok' => false, 'message' => 'Rebuild index sedang berjalan. Coba lagi beberapa saat.', 'stats' => null];
+        }
+
+        try {
+            $crawl = self::crawlDirectoryTree($path, null, 0, self::INDEX_REBUILD_MAX_DEPTH, self::INDEX_REBUILD_MAX_REQUESTS);
+            $stats = $crawl['stats'];
+
+            if (empty($crawl['results'])) {
+                return ['ok' => false, 'message' => 'Tidak ada entry yang bisa di-index dari folder tersebut.', 'stats' => $stats];
+            }
+
+            if ($path === '' && !empty($stats['partial'])) {
+                return ['ok' => false, 'message' => 'Rebuild root terhenti karena batas crawl. Index tidak diubah.', 'stats' => $stats];
+            }
+
+            $existing = self::loadFullIndex() ?? [];
+            $merged = [];
+
+            foreach ($existing as $e) {
+                $rel = isset($e['rel']) ? rtrim((string)$e['rel'], '/') : '';
+                if ($path !== '' && ($rel === $path || strpos($rel, $path . '/') === 0)) {
+                    continue;
+                }
+                $key = $rel !== '' ? $rel . '#' . ($e['name'] ?? '') : uniqid('bsom_', true);
+                $merged[$key] = $e;
+            }
+
+            foreach ($crawl['results'] as $e) {
+                $rel = isset($e['rel']) ? rtrim((string)$e['rel'], '/') : '';
+                $key = $rel . '#' . ($e['name'] ?? '');
+                $merged[$key] = $e;
+            }
+
+            $file = self::fullIndexFile();
+            $payload = [
+                'generated' => time(),
+                'count' => count($merged),
+                'entries' => array_values($merged),
+            ];
+            $tmp = $file . '.' . getmypid() . '.tmp';
+            $written = @file_put_contents($tmp, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false;
+            if ($written) {
+                $written = @rename($tmp, $file);
+            }
+            if (!$written) {
+                @unlink($tmp);
+                return ['ok' => false, 'message' => 'Gagal menyimpan index.', 'stats' => $stats];
+            }
+
+            $message = 'Index folder ' . ($path !== '' ? $path : 'root') . ' diperbarui: ' .
+                count($crawl['results']) . ' entry baru, total ' . count($merged) . ' entry (' .
+                $stats['requests'] . ' request).';
+
+            return [
+                'ok' => true,
+                'message' => $message,
+                'stats' => $stats,
+                'newEntries' => count($crawl['results']),
+                'totalEntries' => count($merged),
+            ];
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     private static function searchInIndex(string $query, array $index): array

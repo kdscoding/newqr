@@ -321,6 +321,141 @@ if ($viewMode) {
         word-break: break-all;
     }
 
+    /* Manual partial index rebuild */
+    .bsom-index-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .bsom-rebuild-form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #f8fafc;
+    }
+
+    .bsom-modal .bsom-rebuild-form {
+        display: block;
+        padding: 16px 18px;
+        border: none;
+        border-radius: 0;
+        background: #fff;
+    }
+
+    .bsom-modal .bsom-rebuild-actions {
+        justify-content: flex-end;
+    }
+
+    .bsom-rebuild-form label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+    }
+
+    .bsom-rebuild-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 6px;
+        width: 100%;
+        max-height: 220px;
+        overflow: auto;
+        margin: 8px 0;
+        padding: 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #fff;
+    }
+
+    .bsom-rebuild-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #0f172a;
+    }
+
+    .bsom-rebuild-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    /* Rebuild modal */
+    body.bsom-modal-open {
+        overflow: hidden;
+    }
+
+    .bsom-modal[hidden] {
+        display: none;
+    }
+
+    .bsom-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .bsom-modal__overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+    }
+
+    .bsom-modal__card {
+        position: relative;
+        width: min(720px, 100%);
+        max-height: 85vh;
+        overflow: auto;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+    }
+
+    .bsom-modal__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 18px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .bsom-modal__title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .bsom-modal__close {
+        border: none;
+        background: #f1f5f9;
+        color: #64748b;
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+    }
+
+    .bsom-modal__close:hover {
+        background: #e2e8f0;
+        color: #334155;
+    }
+
     /* Card */
     .bsom-card {
         background: #fff;
@@ -682,6 +817,55 @@ if ($viewMode) {
         </form>
     </div>
 
+    <?php if (!$viewMode): ?>
+        <!-- Manual Partial Index Rebuild -->
+        <div class="bsom-index-actions">
+            <button type="button" id="bsomRebuildOpen" class="btn-modern btn-modern-success btn-modern-sm">Pilih Folder Index / Rebuild</button>
+            <?php if (!empty($rebuildMessage)): ?>
+                <div class="bsom-error"><?= htmlspecialchars($rebuildMessage, ENT_QUOTES, 'UTF-8') ?></div>
+            <?php endif; ?>
+        </div>
+
+        <div class="bsom-modal" id="bsomRebuildModal" hidden>
+            <div class="bsom-modal__overlay" data-close="1"></div>
+            <div class="bsom-modal__card" role="dialog" aria-modal="true" aria-labelledby="bsomRebuildTitle">
+                <div class="bsom-modal__head">
+                    <h2 class="bsom-modal__title" id="bsomRebuildTitle">Rebuild Index Folder</h2>
+                    <button type="button" class="bsom-modal__close" data-close="1" aria-label="Tutup">×</button>
+                </div>
+                <form method="get" action="<?= BASE_URL ?>/bsom" class="bsom-rebuild-form">
+                    <?php if (($pathEncoded ?? '') !== ''): ?>
+                        <input type="hidden" name="path" value="<?= htmlspecialchars($pathEncoded, ENT_QUOTES, 'UTF-8') ?>">
+                    <?php endif; ?>
+                    <?php if (($query ?? '') !== ''): ?>
+                        <input type="hidden" name="q" value="<?= htmlspecialchars($query, ENT_QUOTES, 'UTF-8') ?>">
+                    <?php endif; ?>
+                    <label>Pilih folder untuk index:</label>
+                    <div class="bsom-rebuild-list" id="bsomRebuildList">
+                        <label class="bsom-rebuild-item">
+                            <input type="checkbox" name="rebuild_paths[]" value="<?= htmlspecialchars($path ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <span>Folder saat ini<?= ($path ?? '') !== '' ? ': ' . htmlspecialchars($path, ENT_QUOTES, 'UTF-8') : ' (root)' ?></span>
+                        </label>
+                        <?php foreach (($entries ?? []) as $rebuildEntry): ?>
+                            <?php if (!empty($rebuildEntry['isDir']) && empty($rebuildEntry['isParent'])): ?>
+                                <label class="bsom-rebuild-item">
+                                    <input type="checkbox" name="rebuild_paths[]" value="<?= htmlspecialchars($rebuildEntry['rel'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <span><?= htmlspecialchars(rtrim($rebuildEntry['name'], '/'), ENT_QUOTES, 'UTF-8') ?></span>
+                                </label>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="bsom-rebuild-actions">
+                        <button type="button" class="btn-modern btn-modern-ghost btn-modern-sm" id="bsomRebuildCheckAll">Centang Semua</button>
+                        <button type="button" class="btn-modern btn-modern-ghost btn-modern-sm" id="bsomRebuildUncheckAll">Hapus Centang</button>
+                        <button type="submit" name="rebuild_index" value="1" class="btn-modern btn-modern-success btn-modern-sm">Rebuild Index Terpilih</button>
+                        <button type="button" class="btn-modern btn-modern-ghost btn-modern-sm" data-close="1">Batal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <?php if ($viewMode): ?>
         <!-- ============ FILE VIEW PAGE ============ -->
         <?php if ($v['error'] !== null): ?>
@@ -946,6 +1130,54 @@ if ($viewMode) {
                     var pv = tr.nextElementSibling;
                     if (pv && pv.classList.contains('bsom-preview-row')) pv.style.display = visible ? '' : 'none';
                 });
+            });
+        }
+
+        // Manual rebuild checklist controls
+        var rebuildList = document.getElementById('bsomRebuildList');
+        var checkAll = document.getElementById('bsomRebuildCheckAll');
+        var uncheckAll = document.getElementById('bsomRebuildUncheckAll');
+
+        if (rebuildList && checkAll) {
+            checkAll.addEventListener('click', function() {
+                rebuildList.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+                    cb.checked = true;
+                });
+            });
+        }
+
+        if (rebuildList && uncheckAll) {
+            uncheckAll.addEventListener('click', function() {
+                rebuildList.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+                    cb.checked = false;
+                });
+            });
+        }
+
+        // Rebuild modal open/close
+        var rebuildModal = document.getElementById('bsomRebuildModal');
+        var rebuildOpen = document.getElementById('bsomRebuildOpen');
+
+        function closeBsomRebuildModal() {
+            if (!rebuildModal) return;
+            rebuildModal.hidden = true;
+            document.body.classList.remove('bsom-modal-open');
+        }
+
+        if (rebuildModal && rebuildOpen) {
+            rebuildOpen.addEventListener('click', function() {
+                rebuildModal.hidden = false;
+                document.body.classList.add('bsom-modal-open');
+            });
+
+            rebuildModal.querySelectorAll('[data-close]').forEach(function(el) {
+                el.addEventListener('click', closeBsomRebuildModal);
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && !rebuildModal.hidden) {
+                    closeBsomRebuildModal();
+                }
             });
         }
     })();
