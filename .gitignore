@@ -9,3 +9,7 @@ Thumbs.db
 *.swp
 .idea/
 *.log
+
+cache/bsom/*
+!cache/bsom/.htaccess
+!cache/bsom/.gitignore

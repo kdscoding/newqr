@@ -489,9 +489,30 @@ class BsomPresenter
     private const INDEX_REBUILD_MAX_BATCH = 20;
     private const INDEX_REBUILD_COOLDOWN = 300;
 
+    private static function bsomCacheDir(): string
+    {
+        $base = defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 1);
+        $dir = rtrim($base, '/\\') . '/cache/bsom';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+        return $dir;
+    }
+
     private static function fullIndexFile(): string
     {
-        return sys_get_temp_dir() . '/bsom_full_index.json';
+        $file = self::bsomCacheDir() . '/bsom_full_index.json';
+        $legacy = sys_get_temp_dir() . '/bsom_full_index.json';
+
+        if (!is_file($file) && is_file($legacy)) {
+            if (!@rename($legacy, $file)) {
+                if (@copy($legacy, $file)) {
+                    @unlink($legacy);
+                }
+            }
+        }
+
+        return $file;
     }
 
     private static function lastIndexRebuiltAt(): ?int
@@ -803,7 +824,7 @@ class BsomPresenter
 
     private static function rebuildLockFile(): string
     {
-        return sys_get_temp_dir() . '/bsom_rebuild.lock';
+        return self::bsomCacheDir() . '/bsom_rebuild.lock';
     }
 
     private static function rebuildIndexScope(string $path): array

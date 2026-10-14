@@ -89,7 +89,11 @@ while ($active || $queue !== []) {
         $lastReport = $now;
         
         // periodic save
-        $cacheFile = sys_get_temp_dir() . '/bsom_full_index.json';
+        $cacheDir = BASE_PATH . '/cache/bsom';
+if (!is_dir($cacheDir)) {
+    @mkdir($cacheDir, 0700, true);
+}
+$cacheFile = $cacheDir . '/bsom_full_index.json';
         $payload = json_encode(['generated' => time(), 'count' => count($flat), 'entries' => $flat]);
         @file_put_contents($cacheFile, $payload, LOCK_EX);
     }
@@ -98,7 +102,11 @@ while ($active || $queue !== []) {
 curl_multi_close($mh);
 
 // final save
-$cacheFile = sys_get_temp_dir() . '/bsom_full_index.json';
+$cacheDir = BASE_PATH . '/cache/bsom';
+if (!is_dir($cacheDir)) {
+    @mkdir($cacheDir, 0700, true);
+}
+$cacheFile = $cacheDir . '/bsom_full_index.json';
 $payload = json_encode(['generated' => time(), 'count' => count($flat), 'entries' => $flat]);
 @file_put_contents($cacheFile, $payload, LOCK_EX);
 
