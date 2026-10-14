@@ -246,6 +246,12 @@ if ($viewMode) {
         color: #94a3b8;
     }
 
+    .bsom-last-rebuild {
+        font-size: 12px;
+        color: #64748b;
+        white-space: nowrap;
+    }
+
     .btn-modern {
         padding: 10px 18px;
         border-radius: 10px;
@@ -752,6 +758,32 @@ if ($viewMode) {
         font-size: 14px;
     }
 
+    .bsom-notice {
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        font-size: 13px;
+    }
+
+    .bsom-notice--success {
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+        color: #065f46;
+    }
+
+    .bsom-notice--warning {
+        background: #fffbeb;
+        border-color: #fde68a;
+        color: #92400e;
+    }
+
+    .bsom-notice--error {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: #991b1b;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
         .bsom-page-title {
@@ -805,6 +837,9 @@ if ($viewMode) {
             <button type="submit" class="btn-modern btn-modern-primary btn-modern-sm">Cari</button>
             <?php if (!$viewMode): ?>
                 <button type="button" id="bsomRebuildOpen" class="btn-modern btn-modern-success btn-modern-sm">Rebuild</button>
+                <span class="bsom-last-rebuild" id="bsomLastRebuild">
+                    Last rebuild: <?= !empty($indexRebuiltAt) ? date('d-m-Y H:i:s', (int)$indexRebuiltAt) : 'belum ada' ?>
+                </span>
             <?php endif; ?>
             <?php if (($query ?? '') !== ''): ?>
                 <a href="<?= BASE_URL ?>/bsom<?= ($pathEncoded ?? '') !== '' ? '?path=' . $pathEncoded : '' ?>" class="btn-modern btn-modern-ghost btn-modern-sm">Bersihkan</a>
@@ -813,24 +848,27 @@ if ($viewMode) {
     </div>
 
     <?php if (!$viewMode && !empty($rebuildMessage)): ?>
-        <div class="bsom-error"><?= htmlspecialchars($rebuildMessage, ENT_QUOTES, 'UTF-8') ?></div>
+        <div class="bsom-notice bsom-notice--<?= htmlspecialchars($rebuildStatus ?? 'warning', ENT_QUOTES, 'UTF-8') ?>">
+            <?= htmlspecialchars($rebuildMessage, ENT_QUOTES, 'UTF-8') ?>
+        </div>
     <?php endif; ?>
 
     <?php if (!$viewMode): ?>
         <div class="bsom-modal" id="bsomRebuildModal" hidden>
-            <div class="bsom-modal__overlay" data-close="1"></div>
+            <div class="bsom-modal__overlay"></div>
             <div class="bsom-modal__card" role="dialog" aria-modal="true" aria-labelledby="bsomRebuildTitle">
                 <div class="bsom-modal__head">
                     <h2 class="bsom-modal__title" id="bsomRebuildTitle">Rebuild Index Folder</h2>
                     <button type="button" class="bsom-modal__close" data-close="1" aria-label="Tutup">×</button>
                 </div>
-                <form method="get" action="<?= BASE_URL ?>/bsom" class="bsom-rebuild-form">
+                <form method="post" action="<?= BASE_URL ?>/bsom" class="bsom-rebuild-form" id="bsomRebuildForm">
                     <?php if (($pathEncoded ?? '') !== ''): ?>
                         <input type="hidden" name="path" value="<?= htmlspecialchars($pathEncoded, ENT_QUOTES, 'UTF-8') ?>">
                     <?php endif; ?>
                     <?php if (($query ?? '') !== ''): ?>
                         <input type="hidden" name="q" value="<?= htmlspecialchars($query, ENT_QUOTES, 'UTF-8') ?>">
                     <?php endif; ?>
+                    <input type="hidden" name="rebuild_index" value="1">
                     <label>Pilih folder untuk index:</label>
                     <div class="bsom-rebuild-list" id="bsomRebuildList">
                         <label class="bsom-rebuild-item">
@@ -849,7 +887,7 @@ if ($viewMode) {
                     <div class="bsom-rebuild-actions">
                         <button type="button" class="btn-modern btn-modern-ghost btn-modern-sm" id="bsomRebuildCheckAll">Centang Semua</button>
                         <button type="button" class="btn-modern btn-modern-ghost btn-modern-sm" id="bsomRebuildUncheckAll">Hapus Centang</button>
-                        <button type="submit" name="rebuild_index" value="1" class="btn-modern btn-modern-success btn-modern-sm">Rebuild Index Terpilih</button>
+                        <button type="submit" id="bsomRebuildSubmit" class="btn-modern btn-modern-success btn-modern-sm">Rebuild Index Terpilih</button>
                         <button type="button" class="btn-modern btn-modern-ghost btn-modern-sm" data-close="1">Batal</button>
                     </div>
                 </form>
@@ -1148,11 +1186,21 @@ if ($viewMode) {
         // Rebuild modal open/close
         var rebuildModal = document.getElementById('bsomRebuildModal');
         var rebuildOpen = document.getElementById('bsomRebuildOpen');
+        var rebuildForm = document.getElementById('bsomRebuildForm');
+        var rebuildSubmit = document.getElementById('bsomRebuildSubmit');
 
         function closeBsomRebuildModal() {
             if (!rebuildModal) return;
             rebuildModal.hidden = true;
             document.body.classList.remove('bsom-modal-open');
+        }
+
+        if (rebuildForm && rebuildSubmit) {
+            rebuildSubmit.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                rebuildForm.submit();
+            });
         }
 
         if (rebuildModal && rebuildOpen) {
@@ -1162,7 +1210,12 @@ if ($viewMode) {
             });
 
             rebuildModal.querySelectorAll('[data-close]').forEach(function(el) {
-                el.addEventListener('click', closeBsomRebuildModal);
+                el.addEventListener('click', function(e) {
+                    if (el.classList.contains('bsom-modal__overlay') && e.target !== el) {
+                        return;
+                    }
+                    closeBsomRebuildModal();
+                });
             });
 
             document.addEventListener('keydown', function(e) {

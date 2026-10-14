@@ -10,18 +10,24 @@ class BsomPresenter
             session_start();
         }
 
-        $rawPath = isset($_GET['path']) ? (string)$_GET['path'] : '';
+        $rawPath = '';
+        if (isset($_POST['path']) && is_scalar($_POST['path'])) {
+            $rawPath = (string)$_POST['path'];
+        } else {
+            $rawPath = isset($_GET['path']) ? (string)$_GET['path'] : '';
+        }
         $rawPath = self::decodeInputPath($rawPath);
         $path = self::normalizePath($rawPath);
         $path = rtrim($path, '/');
 
-        $query = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+        $query = isset($_POST['q']) ? trim((string)$_POST['q']) : (isset($_GET['q']) ? trim((string)$_GET['q']) : '');
         $query = mb_substr($query, 0, 200);
 
         $rebuildMessage = null;
-        if (isset($_GET['rebuild_index'])) {
+        $rebuildStatus = null;
+        if (isset($_POST['rebuild_index']) || isset($_GET['rebuild_index'])) {
             $rebuildPaths = [];
-            $rawRebuildPaths = $_GET['rebuild_paths'] ?? null;
+            $rawRebuildPaths = $_POST['rebuild_paths'] ?? ($_GET['rebuild_paths'] ?? null);
 
             if (is_array($rawRebuildPaths)) {
                 foreach ($rawRebuildPaths as $rawRebuildItem) {
@@ -33,8 +39,8 @@ class BsomPresenter
                         $rebuildPaths[] = $normalizedPath;
                     }
                 }
-            } elseif (isset($_GET['rebuild_path'])) {
-                $normalizedPath = rtrim(self::normalizePath((string)$_GET['rebuild_path']), '/');
+            } elseif (isset($_POST['rebuild_path']) || isset($_GET['rebuild_path'])) {
+                $normalizedPath = rtrim(self::normalizePath((string)($_POST['rebuild_path'] ?? ($_GET['rebuild_path'] ?? ''))), '/');
                 if (strpos($normalizedPath, '..') === false) {
                     $rebuildPaths[] = $normalizedPath;
                 }
@@ -44,6 +50,7 @@ class BsomPresenter
 
             if ($rebuildPaths === []) {
                 $rebuildMessage = 'Pilih minimal satu folder untuk rebuild index.';
+                $rebuildStatus = 'warning';
             } else {
                 if (count($rebuildPaths) > self::INDEX_REBUILD_MAX_BATCH) {
                     $rebuildPaths = array_slice($rebuildPaths, 0, self::INDEX_REBUILD_MAX_BATCH);
@@ -74,6 +81,14 @@ class BsomPresenter
                     ' gagal, ' . $newEntryCount . ' entry baru, total index ' . $totalEntries .
                     ', ' . $requestCount . ' request.';
 
+                if ($successCount > 0 && $failedCount === 0) {
+                    $rebuildStatus = 'success';
+                } elseif ($successCount === 0) {
+                    $rebuildStatus = 'error';
+                } else {
+                    $rebuildStatus = 'warning';
+                }
+
                 if ($errors !== []) {
                     $rebuildMessage .= ' Gagal: ' . implode('; ', $errors);
                 }
@@ -84,6 +99,8 @@ class BsomPresenter
         $sortDir = isset($_GET['dir']) ? (string)$_GET['dir'] : 'asc';
         $sortCol = in_array($sortCol, ['name', 'modified', 'size'], true) ? $sortCol : 'name';
         $sortDir = in_array($sortDir, ['asc', 'desc'], true) ? $sortDir : 'asc';
+
+        $indexRebuiltAt = self::lastIndexRebuiltAt();
 
         $entries = [];
         $error = null;
@@ -530,6 +547,13 @@ class BsomPresenter
         return sys_get_temp_dir() . '/bsom_full_index.json';
     }
 
+    private static function lastIndexRebuiltAt(): ?int
+    {
+        $file = self::fullIndexFile();
+        clearstatcache(true, $file);
+        return is_file($file) ? filemtime($file) : null;
+    }
+
     private static function loadFullIndex(): ?array
     {
         $file = self::fullIndexFile();
@@ -874,6 +898,9 @@ class BsomPresenter
             $written = @file_put_contents($tmp, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false;
             if ($written) {
                 $written = @rename($tmp, $file);
+                if ($written) {
+                    clearstatcache(true, $file);
+                }
             }
             if (!$written) {
                 @unlink($tmp);

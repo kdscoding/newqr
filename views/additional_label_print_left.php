@@ -70,33 +70,67 @@
   <div class="summary-row">
 
     <?php if (!empty($summaryByNameItem)): ?>
+      <?php
+        $buildingGroup = [];
+        foreach ($summaryByNameItem as $e) {
+          $g = isset($e['gedung']) ? $e['gedung'] : '(UNKNOWN GEDUNG)';
+          if (!isset($buildingGroup[$g])) {
+            $buildingGroup[$g] = 0;
+          }
+          $buildingGroup[$g]++;
+        }
+        $groupedEntries = array_values($summaryByNameItem);
+        $groupedCount = count($groupedEntries);
+        $grandTotalPoNamaItem = 0;
+      ?>
       <div class="summary-section">
         <div class="summary-title">📋 SUMMARY TOTAL QTY BERDASARKAN NAMA DAN ITEM</div>
         <table class="summary-table">
           <thead>
             <tr>
-              <th style="width:30%">NAMA (TAKEN BY)</th>
-              <th style="width:35%">ITEM</th>
+              <th style="width:10%">GEDUNG</th>
+              <th style="width:20%">NAMA (TAKEN BY)</th>
+              <th style="width:30%">ITEM</th>
               <th style="width:15%">TOTAL PO</th>
-              <th style="width:20%">TOTAL QTY</th>
+              <th style="width:25%">TOTAL QTY</th>
             </tr>
           </thead>
           <tbody>
             <?php
-              $grandTotalPoNamaItem = 0;
-              foreach ($summaryByNameItem as $entry):
+              $namaRowCount = [];
+              foreach ($summaryByNameItem as $e) {
+                $g = isset($e['gedung']) ? $e['gedung'] : '(UNKNOWN GEDUNG)';
+                $k = $g . '|' . $e['nama'];
+                if (!isset($namaRowCount[$k])) {
+                  $namaRowCount[$k] = 0;
+                }
+                $namaRowCount[$k]++;
+              }
+            ?>
+            <?php for ($idx = 0; $idx < $groupedCount; $idx++): ?>
+            <?php
+              $entry = $groupedEntries[$idx];
               $totalPo = isset($nameItemRowCount[$entry['nama'] . '|' . $entry['item']]) ? $nameItemRowCount[$entry['nama'] . '|' . $entry['item']] : 0;
               $grandTotalPoNamaItem += $totalPo;
+              $gedung = isset($entry['gedung']) ? $entry['gedung'] : '(UNKNOWN GEDUNG)';
+              $gedungPrev = $idx > 0 ? (isset($groupedEntries[$idx - 1]['gedung']) ? $groupedEntries[$idx - 1]['gedung'] : '(UNKNOWN GEDUNG)') : null;
+              $namaKey = $gedung . '|' . $entry['nama'];
+              $namaKeyPrev = $idx > 0 ? (isset($groupedEntries[$idx - 1]['gedung']) ? $groupedEntries[$idx - 1]['gedung'] : '(UNKNOWN GEDUNG)') . '|' . $groupedEntries[$idx - 1]['nama'] : null;
             ?>
             <tr>
-              <td><?= htmlspecialchars($entry['nama']) ?></td>
+              <?php if ($gedung !== $gedungPrev): ?>
+              <td rowspan="<?= $buildingGroup[$gedung] ?>" class="summary-gedung-cell"><strong><?= htmlspecialchars($gedung) ?></strong></td>
+              <?php endif ?>
+              <?php if ($namaKey !== $namaKeyPrev): ?>
+              <td rowspan="<?= $namaRowCount[$namaKey] ?>" class="summary-nama-cell"><?= htmlspecialchars($entry['nama']) ?></td>
+              <?php endif ?>
               <td><?= htmlspecialchars($entry['item']) ?></td>
               <td style="text-align:center"><?= $totalPo ?></td>
               <td style="text-align:right"><?= number_format($entry['qty'], 0, ',', '.') ?></td>
             </tr>
-            <?php endforeach ?>
+            <?php endfor ?>
             <tr class="summary-total-row">
-              <td colspan="2"><strong>GRAND TOTAL</strong></td>
+              <td colspan="3"><strong>GRAND TOTAL</strong></td>
               <td style="text-align:center"><strong><?= $grandTotalPoNamaItem ?></strong></td>
               <td style="text-align:right"><strong><?= number_format(array_sum($summaryByItem), 0, ',', '.') ?></strong></td>
             </tr>
@@ -378,6 +412,17 @@
 
   .summary-total-row td {
     background: #ddd;
+  }
+
+  .summary-gedung-cell {
+    text-align: center;
+    vertical-align: middle;
+    background: #f5f5f5;
+  }
+
+  .summary-nama-cell {
+    vertical-align: middle;
+    white-space: nowrap;
   }
 
   .summary-row {

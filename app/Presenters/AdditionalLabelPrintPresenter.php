@@ -29,6 +29,8 @@ class AdditionalLabelPrintPresenter {
 
             $itemKey = $item !== '' ? $item : '(UNKNOWN ITEM)';
             $namaKey = $nama !== '' ? $nama : '(UNKNOWN NAMA)';
+            $gedung = isset($r['BUILDING']) ? trim((string)$r['BUILDING']) : '';
+            $gedungKey = $gedung !== '' ? strtoupper($gedung) : '(UNKNOWN GEDUNG)';
 
             if (!isset($summaryByItem[$itemKey])) {
                 $summaryByItem[$itemKey] = 0;
@@ -39,7 +41,7 @@ class AdditionalLabelPrintPresenter {
 
             $nameItemKey = $namaKey . '|' . $itemKey;
             if (!isset($summaryByNameItem[$nameItemKey])) {
-                $summaryByNameItem[$nameItemKey] = ['nama' => $namaKey, 'item' => $itemKey, 'qty' => 0];
+                $summaryByNameItem[$nameItemKey] = ['nama' => $namaKey, 'item' => $itemKey, 'gedung' => $gedungKey, 'qty' => 0];
                 $nameItemRowCount[$nameItemKey] = 0;
             }
             $summaryByNameItem[$nameItemKey]['qty'] += $qty;
@@ -69,6 +71,21 @@ class AdditionalLabelPrintPresenter {
         }
 
         ksort($summaryByItem);
+
+        usort($summaryByNameItem, function ($a, $b) {
+            $rank = function ($gedung) {
+                return ($gedung === '' || $gedung === '(UNKNOWN GEDUNG)') ? 'ZZ' : $gedung;
+            };
+            $cmpGedung = strcasecmp($rank($a['gedung']), $rank($b['gedung']));
+            if ($cmpGedung !== 0) {
+                return $cmpGedung;
+            }
+            $cmpNama = strcasecmp($a['nama'], $b['nama']);
+            if ($cmpNama !== 0) {
+                return $cmpNama;
+            }
+            return strcasecmp($a['item'], $b['item']);
+        });
 
         $view = $variant == 'left' ? 'additional_label_print_left.php' : 'additional_label_print.php';
         include BASE_PATH . '/views/' . $view;
