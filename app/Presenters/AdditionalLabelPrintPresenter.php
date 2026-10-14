@@ -68,6 +68,8 @@ class AdditionalLabelPrintPresenter {
             $summaryByItemPo[$item] = count($poList);
         }
 
+        ksort($summaryByItem);
+
         $view = $variant == 'left' ? 'additional_label_print_left.php' : 'additional_label_print.php';
         include BASE_PATH . '/views/' . $view;
     }

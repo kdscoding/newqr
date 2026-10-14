@@ -217,11 +217,11 @@ if ($viewMode) {
     .bsom-search-form {
         display: flex;
         gap: 8px;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         align-items: center;
         flex: 1 1 300px;
         justify-content: flex-end;
-        max-width: 460px;
+        max-width: 560px;
     }
 
     .bsom-search-input {
@@ -322,14 +322,6 @@ if ($viewMode) {
     }
 
     /* Manual partial index rebuild */
-    .bsom-index-actions {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 8px;
-        margin-bottom: 12px;
-    }
-
     .bsom-rebuild-form {
         display: flex;
         align-items: center;
@@ -811,21 +803,20 @@ if ($viewMode) {
             <?php endif; ?>
             <input type="text" id="bsomSearch" name="q" class="bsom-search-input" value="<?= htmlspecialchars($query ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Cari berkas atau folder...">
             <button type="submit" class="btn-modern btn-modern-primary btn-modern-sm">Cari</button>
+            <?php if (!$viewMode): ?>
+                <button type="button" id="bsomRebuildOpen" class="btn-modern btn-modern-success btn-modern-sm">Rebuild</button>
+            <?php endif; ?>
             <?php if (($query ?? '') !== ''): ?>
                 <a href="<?= BASE_URL ?>/bsom<?= ($pathEncoded ?? '') !== '' ? '?path=' . $pathEncoded : '' ?>" class="btn-modern btn-modern-ghost btn-modern-sm">Bersihkan</a>
             <?php endif; ?>
         </form>
     </div>
 
-    <?php if (!$viewMode): ?>
-        <!-- Manual Partial Index Rebuild -->
-        <div class="bsom-index-actions">
-            <button type="button" id="bsomRebuildOpen" class="btn-modern btn-modern-success btn-modern-sm">Pilih Folder Index / Rebuild</button>
-            <?php if (!empty($rebuildMessage)): ?>
-                <div class="bsom-error"><?= htmlspecialchars($rebuildMessage, ENT_QUOTES, 'UTF-8') ?></div>
-            <?php endif; ?>
-        </div>
+    <?php if (!$viewMode && !empty($rebuildMessage)): ?>
+        <div class="bsom-error"><?= htmlspecialchars($rebuildMessage, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
 
+    <?php if (!$viewMode): ?>
         <div class="bsom-modal" id="bsomRebuildModal" hidden>
             <div class="bsom-modal__overlay" data-close="1"></div>
             <div class="bsom-modal__card" role="dialog" aria-modal="true" aria-labelledby="bsomRebuildTitle">
