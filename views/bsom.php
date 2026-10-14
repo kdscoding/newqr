@@ -252,6 +252,12 @@ if ($viewMode) {
         white-space: nowrap;
     }
 
+    .bsom-rebuild-note {
+        margin: 2px 0 8px;
+        font-size: 12px;
+        color: #64748b;
+    }
+
     .btn-modern {
         padding: 10px 18px;
         border-radius: 10px;
@@ -428,6 +434,13 @@ if ($viewMode) {
         gap: 12px;
         padding: 14px 18px;
         border-bottom: 1px solid #e2e8f0;
+    }
+
+    .bsom-modal__intro {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 2px;
     }
 
     .bsom-modal__title {
@@ -837,9 +850,6 @@ if ($viewMode) {
             <button type="submit" class="btn-modern btn-modern-primary btn-modern-sm">Cari</button>
             <?php if (!$viewMode): ?>
                 <button type="button" id="bsomRebuildOpen" class="btn-modern btn-modern-success btn-modern-sm">Rebuild</button>
-                <span class="bsom-last-rebuild" id="bsomLastRebuild">
-                    Last rebuild: <?= !empty($indexRebuiltAt) ? date('d-m-Y H:i:s', (int)$indexRebuiltAt) : 'belum ada' ?>
-                </span>
             <?php endif; ?>
             <?php if (($query ?? '') !== ''): ?>
                 <a href="<?= BASE_URL ?>/bsom<?= ($pathEncoded ?? '') !== '' ? '?path=' . $pathEncoded : '' ?>" class="btn-modern btn-modern-ghost btn-modern-sm">Bersihkan</a>
@@ -858,7 +868,15 @@ if ($viewMode) {
             <div class="bsom-modal__overlay"></div>
             <div class="bsom-modal__card" role="dialog" aria-modal="true" aria-labelledby="bsomRebuildTitle">
                 <div class="bsom-modal__head">
-                    <h2 class="bsom-modal__title" id="bsomRebuildTitle">Rebuild Index Folder</h2>
+                    <div class="bsom-modal__intro">
+                        <h2 class="bsom-modal__title" id="bsomRebuildTitle">Rebuild Index Folder</h2>
+                        <span class="bsom-last-rebuild" id="bsomLastRebuild">
+                            Last rebuild: <?= !empty($indexRebuiltAt) ? date('d-m-Y H:i:s', (int)$indexRebuiltAt) : 'belum ada' ?>
+                            <?php if (($rebuildCooldownLeft ?? 0) > 0): ?>
+                                · tunggu <?= (int)$rebuildCooldownLeft ?> detik
+                            <?php endif; ?>
+                        </span>
+                    </div>
                     <button type="button" class="bsom-modal__close" data-close="1" aria-label="Tutup">×</button>
                 </div>
                 <form method="post" action="<?= BASE_URL ?>/bsom" class="bsom-rebuild-form" id="bsomRebuildForm">
@@ -870,6 +888,9 @@ if ($viewMode) {
                     <?php endif; ?>
                     <input type="hidden" name="rebuild_index" value="1">
                     <label>Pilih folder untuk index:</label>
+                    <div class="bsom-rebuild-note">
+                        Rebuild dibatasi 1x setiap <?= (int)($rebuildCooldownSeconds ?? 300) ?> detik agar tidak membebani server bsom.
+                    </div>
                     <div class="bsom-rebuild-list" id="bsomRebuildList">
                         <label class="bsom-rebuild-item">
                             <input type="checkbox" name="rebuild_paths[]" value="<?= htmlspecialchars($path ?? '', ENT_QUOTES, 'UTF-8') ?>">
@@ -968,7 +989,9 @@ if ($viewMode) {
         <!-- Content -->
         <?php if (($query ?? '') !== '' && $searchTotal === 0 && $error === null): ?>
             <div class="bsom-card">
-                <div class="bsom-empty">Tidak ada hasil yang cocok. Coba kata kunci lain.</div>
+                <div class="bsom-empty">
+                    <?= htmlspecialchars($searchError ?? 'Tidak ada hasil pada index. Coba kata kunci lain atau lokasi folder.', ENT_QUOTES, 'UTF-8') ?>
+                </div>
             </div>
 
         <?php elseif (($query ?? '') !== '' && $searchTotal > 0): ?>
