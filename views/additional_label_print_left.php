@@ -139,6 +139,62 @@
       </div>
     <?php endif ?>
 
+    <?php if (!empty($summaryByGedungItem)): ?>
+      <div class="summary-section">
+        <div class="summary-title">📋 SUMMARY TOTAL QTY BERDASARKAN GEDUNG DAN ITEM</div>
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th style="width:20%">GEDUNG</th>
+              <th style="width:35%">ITEM</th>
+              <th style="width:15%">TOTAL PO</th>
+              <th style="width:25%">TOTAL QTY</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php
+              $gedungItemGroup = [];
+              foreach ($summaryByGedungItem as $e) {
+                $g = isset($e['gedung']) ? $e['gedung'] : '(UNKNOWN GEDUNG)';
+                if (!isset($gedungItemGroup[$g])) {
+                  $gedungItemGroup[$g] = 0;
+                }
+                $gedungItemGroup[$g]++;
+              }
+              $gedungItemEntries = array_values($summaryByGedungItem);
+              $gedungItemCount = count($gedungItemEntries);
+              $grandTotalGedungItemQty = 0;
+              $grandTotalGedungItemPo = 0;
+            ?>
+            <?php for ($idx = 0; $idx < $gedungItemCount; $idx++): ?>
+            <?php
+              $entry = $gedungItemEntries[$idx];
+              $gedungItemKey = $entry['gedung'] . '|' . $entry['item'];
+              $totalPo = isset($gedungItemRowCount[$gedungItemKey]) ? $gedungItemRowCount[$gedungItemKey] : 0;
+              $grandTotalGedungItemQty += $entry['qty'];
+              $grandTotalGedungItemPo += $totalPo;
+              $gedung = isset($entry['gedung']) ? $entry['gedung'] : '(UNKNOWN GEDUNG)';
+              $gedungPrev = $idx > 0 ? (isset($gedungItemEntries[$idx - 1]['gedung']) ? $gedungItemEntries[$idx - 1]['gedung'] : '(UNKNOWN GEDUNG)') : null;
+            ?>
+            <tr>
+              <?php if ($gedung !== $gedungPrev): ?>
+              <td rowspan="<?= $gedungItemGroup[$gedung] ?>" class="summary-gedung-cell"><strong><?= htmlspecialchars($gedung) ?></strong></td>
+              <?php endif ?>
+              <td><?= htmlspecialchars($entry['item']) ?></td>
+              <td style="text-align:center"><?= $totalPo ?></td>
+              <td style="text-align:right"><?= number_format($entry['qty'], 0, ',', '.') ?></td>
+            </tr>
+            <?php endfor ?>
+            <tr class="summary-total-row">
+              <td colspan="2"><strong>GRAND TOTAL</strong></td>
+              <td style="text-align:center"><strong><?= $grandTotalGedungItemPo ?></strong></td>
+              <td style="text-align:right"><strong><?= number_format($grandTotalGedungItemQty, 0, ',', '.') ?></strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    <?php endif ?>
+
 
     <?php if (!empty($summaryByItem)): ?>
       <div class="summary-section">

@@ -16,8 +16,10 @@ class AdditionalLabelPrintPresenter {
 
         $summaryByItem = [];
         $summaryByNameItem = [];
+        $summaryByGedungItem = [];
         $itemRowCount = [];
         $nameItemRowCount = [];
+        $gedungItemRowCount = [];
         $itemPoMap = [];
         $summaryByNameItemPo = [];
 
@@ -47,6 +49,14 @@ class AdditionalLabelPrintPresenter {
             $summaryByNameItem[$nameItemKey]['qty'] += $qty;
             $nameItemRowCount[$nameItemKey]++;
 
+            $gedungItemKey = $gedungKey . '|' . $itemKey;
+            if (!isset($summaryByGedungItem[$gedungItemKey])) {
+                $summaryByGedungItem[$gedungItemKey] = ['gedung' => $gedungKey, 'item' => $itemKey, 'qty' => 0];
+                $gedungItemRowCount[$gedungItemKey] = 0;
+            }
+            $summaryByGedungItem[$gedungItemKey]['qty'] += $qty;
+            $gedungItemRowCount[$gedungItemKey]++;
+
             if ($itemKey !== '' && $po !== '') {
                 if (!isset($itemPoMap[$itemKey])) {
                     $itemPoMap[$itemKey] = [];
@@ -71,6 +81,7 @@ class AdditionalLabelPrintPresenter {
         }
 
         ksort($summaryByItem);
+        ksort($summaryByGedungItem);
 
         usort($summaryByNameItem, function ($a, $b) {
             $rank = function ($gedung) {
