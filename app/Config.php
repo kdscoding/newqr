@@ -30,26 +30,6 @@ function formatDateDisplay($val)
     return Config::formatDateDisplay($val);
 }
 
-function decodeBsomLegacyPath(string $value): string
-{
-    return str_replace(['&#38;', '&amp;'], '&', $value);
-}
-
-function dedupeRows(array $rows): array
-{
-    $seen = [];
-    $result = [];
-    foreach ($rows as $r) {
-        $key = (isset($r['ID']) ? $r['ID'] : '') . '|' . (isset($r['NO_URUT']) ? $r['NO_URUT'] : '');
-        if (isset($seen[$key])) {
-            continue;
-        }
-        $seen[$key] = true;
-        $result[] = $r;
-    }
-    return $result;
-}
-
 class Flash
 {
     public static function set($type, $message)
